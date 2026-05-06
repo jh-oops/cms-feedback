@@ -1,0 +1,3077 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户反馈分析平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #4f46e5; --primary-light: #818cf8; --primary-dark: #3730a3;
+      --success: #059669; --warning: #d97706; --danger: #dc2626;
+      --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0;
+      --text: #1e293b; --text-light: #64748b; --text-lighter: #94a3b8;
+      --radius: 12px; --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+    
+    /* Header */
+    .header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%); color: #fff; padding: 28px 32px; border-radius: var(--radius); margin-bottom: 24px; position: relative; overflow: hidden; }
+    .header::before { content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%); border-radius: 50%; }
+    .header h1 { font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 10px; position: relative; }
+    .header-subtitle { font-size: 0.875rem; color: rgba(255,255,255,0.7); margin-top: 6px; position: relative; }
+    .header-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.15); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; margin-left: 12px; backdrop-filter: blur(4px); }
+    .header-stats { display: flex; gap: 24px; margin-top: 16px; position: relative; }
+    .header-stat { text-align: center; }
+    .header-stat-value { font-size: 1.5rem; font-weight: 700; }
+    .header-stat-label { font-size: 0.7rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    /* Nav */
+    .nav-tabs { display: flex; gap: 6px; margin-bottom: 24px; flex-wrap: wrap; background: var(--card); padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+    .nav-tab { padding: 8px 18px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 0.875rem; font-weight: 500; color: var(--text-light); transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+    .nav-tab:hover { color: var(--primary); background: var(--bg); }
+    .nav-tab.active { background: var(--primary); color: #fff; box-shadow: var(--shadow-md); }
+    
+    /* Section */
+    .section { display: none; }
+    .section.active { display: block; }
+    
+    /* Card */
+    .card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); margin-bottom: 20px; overflow: hidden; }
+    .card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .card-title { font-size: 0.95rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .card-body { padding: 20px; }
+    
+    /* Import Section */
+    .import-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px; text-align: center; transition: all 0.2s; cursor: pointer; }
+    .import-zone:hover, .import-zone.dragover { border-color: var(--primary); background: #f0f0ff; }
+    .import-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .import-text { font-size: 1rem; color: var(--text); margin-bottom: 6px; font-weight: 500; }
+    .import-hint { font-size: 0.8rem; color: var(--text-light); }
+    .import-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+    .btn { padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover { background: #047857; }
+    .hidden { display: none !important; }
+    input[type="file"] { display: none; }
+    
+    /* Cleaning Report */
+    .cleaning-report { background: var(--bg); border-radius: var(--radius); padding: 20px; margin-top: 16px; }
+    .cleaning-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .cleaning-bar { display: flex; height: 28px; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+    .cleaning-bar-kept { background: var(--success); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.8rem; font-weight: 600; transition: width 0.5s ease; }
+    .cleaning-bar-removed { background: #fca5a5; display: flex; align-items: center; justify-content: center; color: #991b1b; font-size: 0.8rem; font-weight: 600; transition: width 0.5s ease; }
+    .cleaning-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .cleaning-item { background: var(--card); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); }
+    .cleaning-item-label { font-size: 0.8rem; color: var(--text-light); }
+    .cleaning-item-value { font-size: 0.95rem; font-weight: 600; }
+    
+    /* Stats Grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px; border: 1px solid var(--border); box-shadow: var(--shadow); }
+    .stat-icon { font-size: 1.3rem; margin-bottom: 6px; }
+    .stat-label { font-size: 0.72rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--text); }
+    .stat-change { font-size: 0.75rem; margin-top: 2px; }
+    .stat-change.up { color: var(--success); }
+    .stat-change.down { color: var(--danger); }
+    
+    /* Filter Bar */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; background: var(--card); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); }
+    .filter-btn { padding: 5px 12px; border: 1px solid var(--primary); border-radius: 6px; background: transparent; color: var(--primary); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .filter-btn:hover { background: var(--primary); color: #fff; }
+    .filter-btn.active { background: var(--primary); color: #fff; }
+    .filter-group { display: flex; align-items: center; gap: 6px; }
+    .filter-label { font-size: 0.8rem; color: var(--text-light); white-space: nowrap; }
+    .filter-select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; background: var(--card); min-width: 100px; }
+    .filter-select:focus { outline: none; border-color: var(--primary); }
+    .search-input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; min-width: 180px; }
+    .search-input:focus { outline: none; border-color: var(--primary); }
+    .filter-divider { width: 1px; height: 24px; background: var(--border); }
+    
+    /* Charts */
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+    .chart-container { position: relative; height: 280px; }
+    .chart-card { flex: 1; min-width: 400px; }
+    
+    /* Two-column layout */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    
+    /* Feedback List */
+    .feedback-list { display: flex; flex-direction: column; gap: 10px; }
+    .feedback-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; transition: all 0.15s; }
+    .feedback-item:hover { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
+    .feedback-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; gap: 6px; }
+    .feedback-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .feedback-user { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+    .feedback-badge { padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; white-space: nowrap; }
+    .badge-quality-a { background: #d1fae5; color: #065f46; }
+    .badge-quality-b { background: #fef3c7; color: #92400e; }
+    .badge-quality-c { background: #fee2e2; color: #991b1b; }
+    .badge-hv { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #fff; }
+    .feedback-sentiment { padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; white-space: nowrap; }
+    .sentiment-positive { background: #d1fae5; color: #065f46; }
+    .sentiment-neutral { background: #f1f5f9; color: #475569; }
+    .sentiment-negative { background: #fee2e2; color: #991b1b; }
+    .sentiment-demand { background: #ede9fe; color: #5b21b6; }
+    .feedback-content { color: var(--text); font-size: 0.88rem; line-height: 1.6; margin-bottom: 6px; word-break: break-word; }
+    .feedback-translation { color: var(--text-light); font-size: 0.82rem; line-height: 1.5; background: var(--bg); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; border-left: 3px solid var(--primary-light); }
+    .feedback-footer { display: flex; gap: 10px; font-size: 0.75rem; color: var(--text-light); flex-wrap: wrap; }
+    .feedback-tag { background: var(--bg); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+    
+    /* High Value Users */
+    .hv-card { display: flex; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; transition: all 0.15s; }
+    .hv-card:hover { box-shadow: var(--shadow-md); border-color: var(--primary-light); }
+    .hv-rank { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff; }
+    .hv-rank.gold { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+    .hv-rank.silver { background: linear-gradient(135deg, #6b7280, #9ca3af); }
+    .hv-rank.bronze { background: linear-gradient(135deg, #b45309, #d97706); }
+    .hv-info { flex: 1; min-width: 0; }
+    .hv-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+    .hv-stats { display: flex; gap: 14px; font-size: 0.75rem; color: var(--text-light); flex-wrap: wrap; }
+    .hv-score-block { text-align: right; flex-shrink: 0; }
+    .hv-score { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
+    .hv-score-label { font-size: 0.65rem; color: var(--text-light); }
+    
+    /* Summary */
+
+    
+    .highlight-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; }
+    .highlight-item:last-child { border-bottom: none; }
+    .highlight-num { width: 22px; height: 22px; background: var(--primary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; flex-shrink: 0; margin-top: 2px; }
+    .highlight-content { flex: 1; }
+    .highlight-text { color: var(--text); font-size: 0.85rem; line-height: 1.5; }
+    .highlight-meta { font-size: 0.72rem; color: var(--text-light); margin-top: 3px; }
+    
+    /* Region/Module Grid */
+    .region-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .region-chip { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; text-align: center; transition: all 0.15s; cursor: pointer; }
+    .region-chip:hover { border-color: var(--primary); background: #f0f0ff; }
+    .region-chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .region-name { font-size: 0.78rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .region-count { font-size: 0.9rem; font-weight: 700; margin-top: 2px; }
+    
+    /* Pagination */
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 20px; }
+    .page-btn { min-width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; transition: all 0.15s; padding: 0 8px; }
+    .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    
+    /* Toast */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: var(--card); border-radius: 10px; padding: 12px 18px; box-shadow: var(--shadow-lg); border-left: 4px solid var(--primary); display: flex; align-items: center; gap: 8px; animation: slideIn 0.3s ease; font-size: 0.875rem; }
+    .toast.success { border-left-color: var(--success); }
+    .toast.error { border-left-color: var(--danger); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    
+    /* Empty */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-light); }
+    .empty-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.4; }
+    
+    /* Quality legend */
+    .quality-legend { display: flex; gap: 12px; font-size: 0.75rem; color: var(--text-light); align-items: center; }
+    .quality-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+    
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .two-col { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .filter-bar { flex-direction: column; }
+      .header-stats { flex-wrap: wrap; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h1>📊 用户反馈分析平台 <span class="header-badge">🎯 多语言反馈分析</span></h1>
+          <div class="header-subtitle">数据导入 · 清洗分析 · 反馈总结 · 高潜用户 · 反馈详情</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;margin-top:4px;">
+          <button class="btn btn-primary btn-sm" onclick="generateFullReport()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);white-space:nowrap;">📄 生成完整报告</button>
+          <button class="btn btn-secondary btn-sm" onclick="viewReportHistory()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#fff;white-space:nowrap;">📚 历史报告</button>
+        </div>
+      </div>
+      <div class="header-stats" id="header-stats">
+        <div class="header-stat"><div class="header-stat-value" id="stat-total">—</div><div class="header-stat-label">总反馈</div></div>
+        <div class="header-stat"><div class="header-stat-value" id="stat-kept">—</div><div class="header-stat-label">有效数据</div></div>
+        <div class="header-stat"><div class="header-stat-value" id="stat-date-range">—</div><div class="header-stat-label">时间跨度</div></div>
+      </div>
+    </div>
+    
+    <!-- Nav Tabs -->
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-tab="import">📥 数据导入</button>
+      <button class="nav-tab" data-tab="overview">📊 数据总览</button>
+      <button class="nav-tab" data-tab="summary">📝 反馈总结</button>
+      <button class="nav-tab" data-tab="highvalue">📋 反馈详情</button>
+
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <select id="nav-product-select" onchange="onNavProductChange(this.value)" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.8rem;background:var(--card);max-width:160px;cursor:pointer;">
+          <option value="">加载数据后可见</option>
+        </select>
+        <button onclick="openProductModal()" title="管理产品" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:0.82rem;color:var(--text-light);">⚙️</button>
+      </div>
+    </div>
+    
+    <!-- ======== SECTION: 数据导入 ======== -->
+    <div id="section-import" class="section active">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📂 导入反馈数据</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" id="btn-load-json">📄 加载已清洗数据</button>
+            <button class="btn btn-secondary btn-sm" id="btn-load-sample">🧪 演示数据</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- 产品选择器（导入前） -->
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span style="font-size:0.82rem;font-weight:600;color:#1e40af;white-space:nowrap;">🏷️ 当前产品</span>
+            <select id="active-product-select" style="padding:5px 10px;border:1px solid #93c5fd;border-radius:6px;font-size:0.8rem;background:#fff;min-width:140px;">
+              <option value="">— 先选择产品，再导入数据 —</option>
+            </select>
+            <span id="active-product-hint" style="font-size:0.72rem;color:#64748b;margin-left:4px;"></span>
+          </div>
+
+          <!-- Gemini API Key 配置 -->
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:0.82rem;font-weight:600;color:var(--text);white-space:nowrap;">🤖 Gemini AI 自动翻译+情感打标</span>
+              <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:220px;">
+                <input type="password" id="gemini-api-key" placeholder="粘贴 Gemini API Key（可选，不填则跳过AI处理）"
+                  style="flex:1;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:0.8rem;background:var(--card);color:var(--text);outline:none;">
+                <button onclick="toggleKeyVisibility()" title="显示/隐藏" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 4px;">👁</button>
+              </div>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                style="font-size:0.75rem;color:var(--primary);white-space:nowrap;">免费获取 Key →</a>
+
+            </div>
+            <div id="ai-progress-wrap" style="display:none;margin-top:10px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <span id="ai-progress-label" style="font-size:0.78rem;color:var(--text-light);">AI 处理中...</span>
+                <span id="ai-progress-pct" style="font-size:0.78rem;font-weight:600;color:var(--primary);">0%</span>
+              </div>
+              <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+                <div id="ai-progress-bar" style="height:100%;background:var(--primary);border-radius:4px;width:0%;transition:width 0.3s;"></div>
+              </div>
+              <div id="ai-progress-detail" style="font-size:0.72rem;color:var(--text-lighter);margin-top:4px;"></div>
+            </div>
+          </div>
+
+          <div class="import-zone" id="import-zone">
+            <div class="import-icon">📁</div>
+            <div class="import-text">拖拽文件到此处，或点击选择文件上传</div>
+            <div class="import-hint">支持 .xlsx / .csv / .json 格式 · UTF-8编码</div>
+            <div class="import-buttons">
+              <button class="btn btn-primary" id="btn-select-file">选择上传文件</button>
+            </div>
+            <input type="file" id="file-input" accept=".xlsx,.csv,.json">
+          </div>
+          
+          <div id="cleaning-report-box" class="hidden">
+            <div class="cleaning-title">🧹 清洗报告</div>
+            <div class="cleaning-bar">
+              <div class="cleaning-bar-kept" id="cleaning-bar-kept" style="width:0%">保留 0%</div>
+              <div class="cleaning-bar-removed" id="cleaning-bar-removed" style="width:0%">清洗 0%</div>
+            </div>
+            <div class="cleaning-details" id="cleaning-details"></div>
+          </div>
+          
+          <div id="data-preview-box" class="hidden" style="margin-top:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <div id="preview-stats" style="font-size:0.85rem;color:var(--text-light);"></div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-secondary btn-sm" id="btn-export-json">📤 导出JSON</button>
+                <button class="btn btn-secondary btn-sm" id="btn-export-full">📤 全量导出（含AI翻译）</button>
+                <button class="btn btn-danger btn-sm" id="btn-clear">清空数据</button>
+              </div>
+            </div>
+            <div id="preview-table-wrap" style="overflow-x:auto;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ======== SECTION: 数据总览 ======== -->
+    <div id="section-overview" class="section">
+      <div class="stats-grid" id="stats-grid" style="margin-bottom:16px;"></div>
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">地区</span>
+          <select class="filter-select" id="f-region"><option value="">全部地区</option></select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">质量</span>
+          <select class="filter-select" id="f-quality"><option value="">全部</option><option value="A">⭐高质量</option><option value="B">📊中等</option><option value="C">📝低质量</option></select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">情感</span>
+          <select class="filter-select" id="f-sentiment"><option value="">全部</option><option value="positive">👍 正反馈</option><option value="negative">👎 负反馈</option><option value="demand">💡 需求/建议</option><option value="invalid">❌ 无效反馈</option></select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">功能模块</span>
+          <select class="filter-select" id="f-module"><option value="">全部模块</option></select>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="filter-group">
+          <span class="filter-label">🔍</span>
+          <input type="text" class="search-input" id="f-search" placeholder="搜索关键词...">
+        </div>
+      </div>
+      <div class="charts-grid" id="charts-container">
+        <div class="card chart-card">
+          <div class="card-header"><div class="card-title">📈 反馈量趋势</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chart-trend"></canvas></div></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-header"><div class="card-title">😊 情感分布</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chart-sentiment"></canvas></div></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-header"><div class="card-title">🌍 地区分布 TOP10</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chart-region"></canvas></div></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-header"><div class="card-title">🏷️ 功能模块分布</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chart-module"></canvas></div></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-header"><div class="card-title">📱 负反馈机型分布</div></div>
+          <div class="card-body"><div class="chart-container"><canvas id="chart-device"></canvas></div></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ======== SECTION: 反馈总结 ======== -->
+    <div id="section-summary" class="section">
+      <div class="section-title" style="display:none;"></div>
+      <div class="stats-grid" id="summary-stats"></div>
+      <!-- 典型问题统计卡片 -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><div class="card-title">📊 典型问题统计</div><span style="font-size:0.75rem;color:var(--text-light);">各模块负面/需求反馈数量及核心问题</span></div>
+        <div class="card-body">
+          <div id="issue-stats-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
+        </div>
+      </div>
+      <!-- 典型问题模块列表（含展开样本） -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><div class="card-title">🏷️ 各模块典型问题</div><span style="font-size:0.75rem;color:var(--text-light);">按模块聚合，点击展开查看样本反馈</span></div>
+        <div class="card-body">
+          <div id="typical-issues"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⭐ 重点反馈 <span id="highlight-count-label"></span></div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:0.75rem;color:var(--text-light);">按语义评分展示全部 TOP30</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <ul class="highlight-list" id="highlight-list" style="list-style:none;padding:0;margin:0;"></ul>
+          <div id="highlight-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:16px;"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ======== SECTION: 反馈详情 ======== -->
+    <div id="section-highvalue" class="section">
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">情感</span>
+          <select class="filter-select" id="hv-sentiment">
+            <option value="">全部</option>
+            <option value="negative">👎 负反馈</option>
+            <option value="demand">💡 需求/建议</option>
+            <option value="positive">👍 正反馈</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">质量</span>
+          <select class="filter-select" id="hv-quality">
+            <option value="">全部</option>
+            <option value="5">⭐⭐⭐⭐⭐ ≥5分</option>
+            <option value="4">⭐⭐⭐⭐ ≥4分</option>
+            <option value="3">⭐⭐⭐ ≥3分</option>
+            <option value="2">⭐⭐ ≥2分</option>
+            <option value="1">⭐ ≥1分</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">模块</span>
+          <select class="filter-select" id="hv-module"><option value="">全部</option></select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">高潜用户</span>
+          <select class="filter-select" id="hv-ishv">
+            <option value="">全部</option>
+            <option value="yes">💎 是</option>
+            <option value="no">否</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">🔍</span>
+          <input type="text" class="search-input" id="hv-search" placeholder="搜索关键词...">
+        </div>
+        <div class="filter-group" style="margin-left:auto;">
+          <span id="hv-count" style="font-size:0.8rem;color:var(--text-light);"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header" id="hv-card-header">
+          <div class="card-title" id="hv-card-title">📋 反馈详情</div>
+          <div style="display:flex;gap:8px;" id="hv-card-actions">
+            <button class="btn btn-secondary btn-sm" onclick="hvExport()">📥 导出筛选结果</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="feedback-list" id="hv-list"></div>
+          <div class="pagination" id="hv-pagination"></div>
+        </div>
+      </div>
+    </div>
+    
+    
+  </div>
+  
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- 产品管理弹窗 -->
+  <div id="product-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:14px;width:min(900px,95vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:1rem;font-weight:700;">🏷️ 产品管理</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);margin-top:2px;">每个产品独立配置功能模块归一化规则和需求分类模板</div>
+        </div>
+        <button onclick="closeProductModal()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1.1rem;">✕</button>
+      </div>
+      <div style="padding:20px 24px;overflow-y:auto;flex:1;" id="product-modal-body">
+        <!-- 动态内容 -->
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="closeProductModal()" style="padding:8px 20px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#374151;font-size:0.82rem;cursor:pointer;">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 产品选择弹窗（导入前） -->
+  <div id="import-product-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:14px;width:min(500px,95vw);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:1rem;font-weight:700;">🏷️ 选择导入的产品</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);margin-top:2px;">数据将使用该产品的模块归一化规则</div>
+        </div>
+        <button onclick="closeImportProductModal()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:1.1rem;">✕</button>
+      </div>
+      <div style="padding:20px;" id="import-product-body">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.82rem;color:#374151;font-weight:500;">选择产品</label>
+          <select id="import-product-select" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-top:4px;">
+          </select>
+        </div>
+        <div id="import-product-rules-hint" style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;font-size:0.78rem;color:#64748b;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button onclick="closeImportProductModal()" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#374151;font-size:0.82rem;cursor:pointer;">取消</button>
+          <button onclick="confirmImportProduct()" style="padding:8px 20px;border:none;border-radius:8px;background:#4f46e5;color:#fff;font-size:0.82rem;cursor:pointer;font-weight:500;">确认导入</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // STATE
+    // ============================================================
+    let rawData = [];
+    window.cleanedData = [];
+    let currentPage = 1;
+    let pageSize = 20;
+    let charts = {};
+    let _pendingFile = null; // 导入待处理文件
+
+    // ============================================================
+    // 产品管理系统
+    // ============================================================
+
+    // 默认产品配置
+    const DEFAULT_PRODUCTS = {
+      'Visha': {
+        desc: 'Visha 视频/音频工具',
+        moduleRules: {
+          'local video': '本地视频', '本地视频': '本地视频', 'local videos': '本地视频', 'video player': '本地视频',
+          'download': '下载功能', '下载功能': '下载功能', 'downloader': '下载功能', 'downloads': '下载功能',
+          'local audio': '本地音频', '本地音频': '本地音频', 'local music': '本地音频', 'music player': '本地音频',
+          'other': '其他', '其他': '其他', 'misc': '其他', 'others': '其他',
+          'private folder': '隐私文件夹', '隐私文件夹': '隐私文件夹', 'vault': '隐私文件夹', 'secret': '隐私文件夹',
+          'online video': '在线视频', '在线视频': '在线视频', 'online videos': '在线视频', 'streaming': '在线视频',
+          'stability': '整体/稳定性/更新', '整体稳定性更新': '整体/稳定性/更新', 'overall': '整体/稳定性/更新', 'update': '整体/稳定性/更新', 'crash': '整体/稳定性/更新', 'bug': '整体/稳定性/更新',
+        },
+        demandCats: {
+          '📺 本地视频':     { keywords: ['local video','本地视频','video player','视频播放','视频文件','mp4','avi','mkv'],                          impact: '高', reason: '核心功能' },
+          '📥 下载功能':     { keywords: ['download','downloader','下载器','离线下载','下载失败','download speed'],                                 impact: '高', reason: '核心功能' },
+          '🎵 本地音频':     { keywords: ['local audio','本地音频','audio player','音频播放','mp3','flac','wav'],                                   impact: '高', reason: '核心功能' },
+          '🔒 隐私文件夹':   { keywords: ['private folder','privacy folder','vault','保险箱','secret folder','私密文件夹'],                         impact: '高', reason: '高价值付费功能' },
+          '🌐 在线视频':     { keywords: ['online video','在线视频','streaming','流媒体','直播','网络视频','web video','stream online'],             impact: '中', reason: '扩展功能' },
+          '⚡ 性能与稳定性': { keywords: ['crash','bug report','freeze','lag','卡顿','崩溃','闪退','stability','性能','稳定性','更新','slow'],      impact: '高', reason: '直接导致卸载' },
+          '🎨 UI与交互':     { keywords: ['UI design','interface design','界面','交互','design theme','dark mode','图标','视觉'],                  impact: '中', reason: '影响留存' },
+          '🚫 广告体验':     { keywords: ['advertisement','popup ad','banner ad','interstitial ad','广告弹窗','开屏广告','插屏广告','ad-free'],      impact: '高', reason: '广告干扰是流失主因' },
+          '💳 付费与订阅':   { keywords: ['subscription','premium','unlock','purchase','vip','订阅','付费','VIP','解锁','in-app purchase'],          impact: '高', reason: '直接影响收入' },
+          '🔔 通知推送':     { keywords: ['notification','push alert','通知推送','推送提醒','reminder notification'],                                impact: '低', reason: '影响有限' },
+        }
+      },
+      'Notes': {
+        desc: 'Notes 笔记应用',
+        moduleRules: {
+          'text edit': '文本编辑', '文本编辑': '文本编辑', 'editor': '文本编辑', 'text editing': '文本编辑', 'note editor': '文本编辑',
+          'AI能力': 'AI能力', 'AI assistant': 'AI能力', 'artificial intelligence': 'AI能力',
+          'cloud sync': '云服务', '云服务': '云服务', '云同步': '云服务', 'iCloud': '云服务',
+          'visual': '视觉&交互', '视觉交互': '视觉&交互', 'UI design': '视觉&交互', 'interface': '视觉&交互', 'theme': '视觉&交互', 'design': '视觉&交互', 'dark mode': '视觉&交互',
+          'encrypted note': '加密笔记', '加密笔记': '加密笔记', 'encryption': '加密笔记', 'lock note': '加密笔记', '密码笔记': '加密笔记',
+          'reminder': '提醒相关', '提醒相关': '提醒相关', 'reminders': '提醒相关', 'notification': '提醒相关', '提醒': '提醒相关',
+          'stability': '整体/稳定性/更新', '整体稳定性更新': '整体/稳定性/更新', 'overall': '整体/稳定性/更新', 'update': '整体/稳定性/更新', 'crash': '整体/稳定性/更新',
+          'other': '其他', '其他': '其他', 'misc': '其他', 'others': '其他',
+        },
+        demandCats: {
+          '📝 文本编辑':     { keywords: ['text edit','文本编辑','editor','note editor','rich text','富文本','markdown','formatting','排版','字体'],         impact: '高', reason: '核心功能' },
+          '🤖 AI能力':        { keywords: ['AI assistant','artificial intelligence','AI助手','智能摘要','智能翻译','smart summarize','smart translate','chat note','AI笔记'],       impact: '高', reason: '差异化竞争力' },
+          '☁️ 云服务':        { keywords: ['cloud sync','云同步','云服务','同步','备份','restore backup','iCloud','云备份'],                                impact: '高', reason: '核心付费卖点' },
+          '🎨 视觉&交互':     { keywords: ['UI design','interface design','theme','dark mode','视觉','交互','animation','动画','操作体验','界面设计'],      impact: '中', reason: '影响长期留存' },
+          '🔒 加密笔记':      { keywords: ['encrypted note','加密笔记','encryption','密码笔记','指纹笔记','biometric lock','私密笔记','lock note'],         impact: '高', reason: '高价值付费功能' },
+          '⏰ 提醒相关':      { keywords: ['reminder','reminders','to-do list','待办事项','闹钟提醒','任务提醒','recurring reminder','repeat reminder'],     impact: '中', reason: '提升日活' },
+          '⚡ 性能与稳定性': { keywords: ['crash','bug report','freeze','lag','卡顿','崩溃','闪退','bug report','stability','性能','稳定性','更新','slow'],  impact: '高', reason: '直接导致卸载' },
+          '🚫 广告体验':      { keywords: ['advertisement','popup ad','banner ad','广告弹窗','开屏广告','插屏广告','remove ads','ad-free'],                impact: '高', reason: '广告干扰是流失主因' },
+          '💳 付费与订阅':    { keywords: ['subscription','premium plan','unlock','purchase','vip','订阅','付费','VIP','解锁','in-app purchase'],           impact: '高', reason: '直接影响收入' },
+          '📊 数据导出':      { keywords: ['export note','import note','导出笔记','导入笔记','backup note','pdf export','docx export','txt export'],           impact: '中', reason: '用户数据自主性' },
+        }
+      },
+      '通用': {
+        desc: '适用于单产品或未明确区分的场景',
+        moduleRules: {
+          'app': '应用', 'app name': '应用', 'mobile': '应用', 'android': 'Android', 'ios': 'iOS',
+          'mi': '小米', 'xiaomi': '小米', 'redmi': '小米',
+          'huawei': '华为', 'honor': '华为',
+          'samsung': '三星', 'galaxy': '三星',
+          'oppo': 'OPPO', 'vivo': 'Vivo', 'realme': 'Realme', 'oneplus': 'OnePlus',
+          '整蛊': '恶搞', 'prank': '恶搞',
+          '音乐': 'Music', 'music': 'Music',
+          '视频': 'Video', 'video': 'Video',
+        },
+        demandCats: {
+          '🔒 隐私与安全':     { keywords: ['privacy','private','lock','PIN','password','fingerprint','biometric','安全','隐私','密码','指纹','锁','私密'],       impact: '高',  reason: '直接影响留存与付费意愿' },
+          '🚫 广告体验':       { keywords: ['ad','ads','advertis','popup','banner','skip','interstitial','广告','弹窗','开屏','跳过','植入'],                    impact: '高',  reason: '广告干扰是流失主因之一' },
+          '⚡ 性能与稳定性':   { keywords: ['crash','lag','freeze','slow','battery','drain','performance','memory','卡顿','崩溃','耗电','发热','内存','流畅'],   impact: '高',  reason: '崩溃/卡顿直接导致卸载' },
+          '🎵 音频与音乐':     { keywords: ['audio','sound','music','equalizer','EQ','bass','treble','voice','音频','音乐','均衡器','音效','音质','通话'],          impact: '中',  reason: '核心功能优化可提升付费渗透' },
+          '📱 录屏功能':       { keywords: ['record','screen record','recording','capture','录屏','录制','截屏','录屏功能'],                                     impact: '中',  reason: '录屏是分享传播的核心入口' },
+          '📥 下载管理':       { keywords: ['download','save','offline','storage','SD card','download manager','下载','保存','离线','存储'],                    impact: '中',  reason: '下载失败/卡顿是高频痛点' },
+          '🎨 UI与交互':       { keywords: ['UI','interface','design','theme','dark mode','skin','icon','界面','主题','深色模式','图标','交互','操作'],         impact: '中',  reason: '视觉体验影响长期留存' },
+          '🔔 通知推送':       { keywords: ['notification','push','alert','remind','通知','推送','提醒'],                                                           impact: '低',  reason: '易被用户关闭，对留存影响有限' },
+          '💬 社交与分享':     { keywords: ['share','friend','social','invite','comment','分享','好友','社交'],                                               impact: '低',  reason: '依赖社区规模，短期内难以见效' },
+          '💳 付费与订阅':     { keywords: ['subscription','pay','premium','unlock','purchase','vip','订阅','付费','VIP','解锁'],             impact: '高',  reason: '直接影响收入结构' },
+        }
+      }
+    };
+
+    // 加载/保存产品配置
+    function loadProductConfigs() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('cms_product_configs') || 'null');
+        let cfg = saved && Object.keys(saved).length > 0 ? saved : JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+        // 确保每个内置产品都存在且结构完整
+        Object.keys(DEFAULT_PRODUCTS).forEach(name => {
+          if (!cfg[name] || typeof cfg[name] !== 'object') {
+            cfg[name] = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS[name]));
+          } else {
+            if (!cfg[name].moduleRules || typeof cfg[name].moduleRules !== 'object') {
+              cfg[name].moduleRules = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS[name].moduleRules || {}));
+            }
+            if (!cfg[name].demandCats || typeof cfg[name].demandCats !== 'object') {
+              cfg[name].demandCats = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS[name].demandCats || {}));
+            }
+          }
+        });
+        // 对所有用户自定义产品也做兜底
+        Object.keys(cfg).forEach(name => {
+          if (!cfg[name].moduleRules || typeof cfg[name].moduleRules !== 'object') cfg[name].moduleRules = {};
+          if (!cfg[name].demandCats  || typeof cfg[name].demandCats  !== 'object') cfg[name].demandCats  = {};
+        });
+        return cfg;
+      } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_PRODUCTS)); }
+    }
+    function saveProductConfigs(cfg) { localStorage.setItem('cms_product_configs', JSON.stringify(cfg)); }
+
+    // 当前选中产品名（可为空字符串，表示未选择）
+    function getActiveProduct() { return localStorage.getItem('cms_active_product') || ''; }
+    function setActiveProduct(name) { localStorage.setItem('cms_active_product', name || ''); }
+
+    // 获取当前产品的归一化规则
+    function getCurrentModuleRules() {
+      const cfg = loadProductConfigs();
+      const name = getActiveProduct();
+      if (cfg[name]?.moduleRules) return cfg[name].moduleRules;
+      if (cfg['通用']?.moduleRules) return cfg['通用'].moduleRules;
+      return {};
+    }
+
+    // ─── 典型问题统计专用：按产品动态切换的模块列表 + 关键词 ───
+    const PRODUCT_STATS_CONFIG = {
+      'Visha': {
+        modules: ['本地视频', '下载功能', '本地音频', '隐私文件夹', '在线视频', '广告', '整体/稳定性/更新', '其他'],
+        keywords: {
+          '本地视频':         ['视频', '本地视频', '视频播放', '播放视频', '看视频', '看片', 'mp4', 'mkv', 'avi', '影片', '本地影片'],
+          '下载功能':         ['下载', '下载管理', '下载中', '下载失败', '下不动', '下载慢', '无法下载'],
+          '本地音频':         ['音乐', '音频', '本地音乐', '本地音频', '播放音乐', '听歌', 'mp3', 'flac'],
+          '隐私文件夹':       ['隐私', '私密', '隐藏', '加密', '密码锁', '保险箱', '私密文件夹'],
+          '在线视频':         ['在线播放', '流媒体', '直播', '网络视频', '在线视频'],
+          '广告':             ['广告', '弹窗广告', '开屏广告', '激励广告', '插屏广告', '全屏广告', '去广告', '屏蔽广告', '关闭广告', '广告太多', '广告弹窗', 'admob'],
+          '整体/稳定性/更新': ['崩溃', '闪退', '卡顿', '更新', '版本', '新版', '稳定性', '发热', '耗电', '内存', '启动', '安装', '卸载', '重装', 'crash', 'freeze', 'bug', 'slow', 'update'],
+          '其他': []
+        }
+      },
+      'Notes': {
+        modules: ['文本编辑', 'AI能力', '云服务', '加密笔记', '广告', '视觉&交互', '提醒相关', '整体/稳定性/更新', '其他'],
+        keywords: {
+          '文本编辑':         ['编辑', '文本', '排版', '字体', '富文本', '格式', 'markdown', '光标', '输入', '粘贴', '复制'],
+          'AI能力':           ['AI', '人工智能', '智能', '摘要', '翻译', 'ai助手', 'ai笔记', '智能总结', '自动翻译'],
+          '云服务':           ['同步', '云同步', '云服务', '备份', '恢复', 'icloud', '云备份', '数据同步', '跨设备'],
+          '加密笔记':         ['加密', '密码', '指纹', '私密', '隐私', '保险箱', '加密笔记', '锁定'],
+          '广告':             ['广告', '弹窗广告', '开屏广告', '激励广告', '插屏广告', '去广告', '屏蔽广告', '广告太多', 'admob'],
+          '视觉&交互':        ['界面', '主题', '深色', '暗黑', '图标', '动画', '颜色', '字号', '布局', '操作'],
+          '提醒相关':         ['提醒', '待办', '闹钟', '任务', '日程', '计划', '重复提醒', '到期'],
+          '整体/稳定性/更新': ['崩溃', '闪退', '卡顿', '更新', '版本', '新版', '稳定性', '发热', '耗电', '启动', '安装', '卸载', 'crash', 'freeze', 'bug', 'slow', 'update'],
+          '其他': []
+        }
+      }
+    };
+    // 通用兜底配置
+    const DEFAULT_STATS_CONFIG = {
+      modules: ['广告', '整体/稳定性/更新', '其他'],
+      keywords: {
+        '广告':             ['广告', '弹窗广告', '开屏广告', '激励广告', '插屏广告', '去广告', '屏蔽广告', '广告太多', 'admob'],
+        '整体/稳定性/更新': ['崩溃', '闪退', '卡顿', '更新', '版本', '新版', '稳定性', '发热', '耗电', '启动', '安装', '卸载', 'crash', 'freeze', 'bug', 'slow', 'update'],
+        '其他': []
+      }
+    };
+    // 获取当前产品的统计配置（模块列表 + 关键词）
+    function getStatsConfig() {
+      const product = getActiveProduct();
+      return PRODUCT_STATS_CONFIG[product] || DEFAULT_STATS_CONFIG;
+    }
+    // 动态代理：STATS_MODULE_LIST / STATS_MODULE_KEYWORDS 供报告生成复用
+    function getStatsModuleList()     { return getStatsConfig().modules; }
+    function getStatsModuleKeywords() { return getStatsConfig().keywords; }
+    // 推理模块（典型问题统计专用，精确匹配当前产品固定列表）
+    function inferModuleFromContent(r) {
+      const text = ((r.content_zh || '') + ' ' + (r.content || '')).toLowerCase();
+      const cfg = getStatsConfig();
+      const orderedMods = cfg.modules.filter(m => m !== '其他');
+      for (const mod of orderedMods) {
+        const kws = cfg.keywords[mod] || [];
+        for (const kw of kws) {
+          const kwLower = kw.toLowerCase();
+          if (kwLower.length < 3 && /[a-z]/.test(kwLower)) continue;
+          if (text.includes(kwLower)) return mod;
+        }
+      }
+      return '其他';
+    }
+    // 向后兼容旧引用
+    var STATS_MODULE_LIST = null; // 不再使用，用 getStatsModuleList() 替代
+    var STATS_MODULE_KEYWORDS = null; // 不再使用，用 getStatsModuleKeywords() 替代
+    // 标准化模块名（保留给其他地方用）
+    function normalizeModule(rawMod) {
+      const mod = String(rawMod || '').trim();
+      const rules = getCurrentModuleRules();
+      return rules[mod.toLowerCase()] || mod;
+    }
+
+    // 判断关键词是否太短（英文<3字符则跳过）
+    function isKeywordLongEnough(kw) {
+      if (/[a-z]/.test(kw) && kw.replace(/[^a-z]/g,'').length < 3) return false;
+      return true;
+    }
+
+    // 渲染顶部产品选择器
+    function renderProductSelector() {
+      const cfg = loadProductConfigs();
+      const names = Object.keys(cfg).filter(n => n !== '通用').sort();
+      const active = getActiveProduct();
+      const sel = document.getElementById('active-product-select');
+      if (sel) {
+        // 导入页：始终保留空选项在第一位，用户必须主动选择
+        sel.innerHTML = `<option value="">— 先选择产品，再导入数据 —</option>` +
+          names.map(n =>
+            `<option value="${n}"${n === active ? ' selected' : ''}>🏷️ ${n}</option>`
+          ).join('');
+        sel.onchange = () => {
+          setActiveProduct(sel.value);
+          onProductChanged();
+        };
+      }
+      // 导航栏产品选择器（分析页用，保留当前选中状态）
+      const navSel = document.getElementById('nav-product-select');
+      if (navSel) {
+        navSel.innerHTML = `<option value="">— 请选择产品 —</option>` +
+          names.map(n =>
+            `<option value="${n}"${n === active ? ' selected' : ''}>🏷️ ${n}</option>`
+          ).join('');
+        navSel.disabled = (cleanedData || []).length === 0;
+      }
+      const hint = document.getElementById('active-product-hint');
+      if (hint) hint.textContent = active ? `当前：${active}` : '';
+    }
+
+    window.onNavProductChange = function(val) {
+      setActiveProduct(val);
+      onProductChanged();
+    };
+
+    function onProductChanged() {
+      if (Array.isArray(cleanedData) && cleanedData.length > 0) {
+        renderProductSelector();
+        renderOverview();
+        renderSummary();
+      } else {
+        renderProductSelector();
+      }
+    }
+
+    // 打开产品管理弹窗
+    function openProductModal() {
+      const modal = document.getElementById('product-modal');
+      const body = document.getElementById('product-modal-body');
+      renderProductModalBody(body);
+      modal.style.display = 'flex';
+    }
+    function closeProductModal() {
+      document.getElementById('product-modal').style.display = 'none';
+      renderProductSelector();
+      if ((cleanedData || []).length > 0) { renderOverview(); renderSummary(); }
+    }
+
+    // 渲染产品管理弹窗内容
+    function renderProductModalBody(container) {
+      const cfg = loadProductConfigs();
+      const names = Object.keys(cfg).sort();
+      const active = getActiveProduct();
+      const self = this;
+
+      container.innerHTML = `
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          ${names.map(name => `
+            <div style="flex:1;min-width:240px;border:2px solid ${name === active ? '#4f46e5' : '#e2e8f0'};border-radius:10px;overflow:hidden;">
+              <div style="background:${name === active ? '#eef2ff' : '#f8fafc'};padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;">
+                <div>
+                  <span style="font-weight:600;font-size:0.85rem;color:#1e293b;">🏷️ ${name}</span>
+                  ${name === active ? '<span style="font-size:0.68rem;background:#4f46e5;color:#fff;padding:1px 6px;border-radius:10px;margin-left:6px;">当前</span>' : ''}
+                </div>
+                <div style="display:flex;gap:4px;">
+                  <button onclick="editProduct('${name.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #e2e8f0;color:#4f46e5;border-radius:5px;padding:2px 8px;font-size:0.72rem;cursor:pointer;">编辑</button>
+                  ${name !== '通用' ? `<button onclick="deleteProduct('${name.replace(/'/g,"\\'")}')" style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:5px;padding:2px 8px;font-size:0.72rem;cursor:pointer;">删除</button>` : ''}
+                </div>
+              </div>
+              <div style="padding:10px 14px;font-size:0.75rem;color:#64748b;line-height:1.6;">
+                <div>📋 模块规则：${Object.keys(cfg[name]?.moduleRules||{}).length} 条</div>
+                <div>🏷️ 需求分类：${Object.keys(cfg[name]?.demandCats||{}).length} 个</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:14px;">
+          <button onclick="addNewProduct()" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:0.82rem;cursor:pointer;font-weight:500;">➕ 新增产品</button>
+          <span style="font-size:0.75rem;color:#94a3b8;margin-left:10px;">提示：编辑产品可自定义模块归一化规则和需求分类模板</span>
+        </div>
+        <div id="product-edit-area" style="margin-top:16px;display:none;"></div>
+      `;
+    }
+
+    // 编辑产品
+    window.editProduct = function(name) {
+      const cfg = loadProductConfigs();
+      const p = cfg[name] || {};
+      if (!name || Object.keys(p).length === 0) return;
+      const area = document.getElementById('product-edit-area');
+      area.style.display = 'block';
+      area.innerHTML = `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+          <div style="font-size:0.9rem;font-weight:600;margin-bottom:14px;">✏️ 编辑产品「${name}」</div>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.8rem;color:#374151;font-weight:500;display:block;margin-bottom:4px;">产品名称</label>
+            <input id="pe-name" value="${name}" style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;max-width:300px;">
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.8rem;color:#374151;font-weight:500;display:block;margin-bottom:4px;">描述</label>
+            <input id="pe-desc" value="${p.desc||''}" placeholder="产品简要描述" style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.82rem;">
+          </div>
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.8rem;color:#374151;font-weight:500;display:block;margin-bottom:6px;">🔗 模块归一化规则（原始模块 → 归一化名称）</label>
+            <div id="pe-module-rules" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"></div>
+            <button onclick="peAddRule()" style="margin-top:6px;background:none;border:1px dashed #d1d5db;color:#64748b;border-radius:6px;padding:4px 12px;font-size:0.75rem;cursor:pointer;">➕ 添加规则</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button onclick="saveProductEdit('${name.replace(/'/g,"\\'")}')" style="background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:0.82rem;cursor:pointer;font-weight:500;">💾 保存</button>
+            <button onclick="document.getElementById('product-edit-area').style.display='none'" style="background:none;border:1px solid #e2e8f0;color:#64748b;border-radius:8px;padding:7px 18px;font-size:0.82rem;cursor:pointer;">取消</button>
+          </div>
+        </div>
+      `;
+      renderModuleRulesEditor(p.moduleRules || {});
+      area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    function renderModuleRulesEditor(rules) {
+      const container = document.getElementById('pe-module-rules');
+      if (!container) return;
+      const entries = Object.entries(rules);
+      container.innerHTML = entries.map(([k, v], i) => `
+        <div style="display:contents;" class="pe-rule-row" data-idx="${i}">
+          <input value="${k}" placeholder="原始名称" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.78rem;" onchange="peRuleChange(${i},'key',this.value)">
+          <input value="${v}" placeholder="归一化为" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.78rem;" onchange="peRuleChange(${i},'val',this.value)">
+        </div>
+      `).join('');
+      window._peRules = entries;
+    }
+
+    window._peRules = [];
+    window.peRuleChange = function(idx, field, val) {
+      if (!window._peRules[idx]) window._peRules[idx] = ['',''];
+      window._peRules[idx][field === 'key' ? 0 : 1] = val;
+    };
+    window.peAddRule = function() {
+      window._peRules.push(['','']);
+      const container = document.getElementById('pe-module-rules');
+      const idx = window._peRules.length - 1;
+      const div = document.createElement('div');
+      div.style.cssText = 'display:contents;';
+      div.className = 'pe-rule-row';
+      div.setAttribute('data-idx', idx);
+      div.innerHTML = `
+        <input placeholder="原始名称" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.78rem;" onchange="peRuleChange(${idx},'key',this.value)">
+        <input placeholder="归一化为" style="padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:0.78rem;" onchange="peRuleChange(${idx},'val',this.value)">
+      `;
+      container.appendChild(div);
+    };
+
+    window.saveProductEdit = function(oldName) {
+      const cfg = loadProductConfigs();
+      const newName = document.getElementById('pe-name').value.trim();
+      const desc = document.getElementById('pe-desc').value.trim();
+      if (!newName) { alert('产品名称不能为空'); return; }
+
+      // 收集规则
+      const rules = {};
+      window._peRules.forEach(([k, v]) => { if (k.trim() && v.trim()) rules[k.trim().toLowerCase()] = v.trim(); });
+
+      let newCfg;
+      if (newName === oldName) {
+        newCfg = cfg;
+      } else {
+        if (cfg[newName]) { alert('产品「' + newName + '」已存在'); return; }
+        newCfg = {};
+        Object.entries(cfg).forEach(([k, v]) => { newCfg[k === oldName ? newName : k] = v; });
+        if (getActiveProduct() === oldName) setActiveProduct(newName);
+      }
+      newCfg[newName] = {
+        desc,
+        moduleRules: rules,
+        demandCats: cfg[newName]?.demandCats || cfg['通用']?.demandCats || {}
+      };
+      saveProductConfigs(newCfg);
+      closeProductModal();
+      openProductModal();
+    };
+
+    window.addNewProduct = function() {
+      const name = prompt('输入新产品名称：');
+      if (!name || !name.trim()) return;
+      const cfg = loadProductConfigs();
+      if (cfg[name.trim()]) { alert('产品已存在'); return; }
+      cfg[name.trim()] = JSON.parse(JSON.stringify(cfg['通用'] || DEFAULT_PRODUCTS['通用']));
+      cfg[name.trim()].desc = '';
+      saveProductConfigs(cfg);
+      closeProductModal();
+      openProductModal();
+    };
+
+    window.deleteProduct = function(name) {
+      if (!confirm('确定删除产品「' + name + '」？')) return;
+      const cfg = loadProductConfigs();
+      delete cfg[name];
+      saveProductConfigs(cfg);
+      if (getActiveProduct() === name) setActiveProduct('');
+      closeProductModal();
+      openProductModal();
+    };
+
+    // 导入时选择产品
+    function openImportProductModal(file) {
+      _pendingFile = file;
+      const cfg = loadProductConfigs();
+      const names = Object.keys(cfg).filter(n => n !== '通用').sort();
+      const active = getActiveProduct();
+      const sel = document.getElementById('import-product-select');
+      sel.innerHTML = `<option value="">— 请选择产品 —</option>` +
+        names.map(n => `<option value="${n}"${n === active ? ' selected' : ''}>🏷️ ${n}</option>`).join('');
+      sel.onchange = () => {
+        const p = cfg[sel.value] || {};
+        const hint = document.getElementById('import-product-rules-hint');
+        if (hint) {
+          const rules = Object.entries(p.moduleRules || {}).slice(0, 6);
+          hint.innerHTML = `<b>模块归一化示例：</b>${rules.map(([k,v])=>`${k} → ${v}`).join('、')}${Object.keys(p.moduleRules||{}).length > 6 ? '...' : ''}`;
+        }
+      };
+      sel.onchange();
+      document.getElementById('import-product-modal').style.display = 'flex';
+    }
+    function closeImportProductModal() {
+      document.getElementById('import-product-modal').style.display = 'none';
+      _pendingFile = null;
+    }
+    function confirmImportProduct() {
+      const productName = document.getElementById('import-product-select').value;
+      setActiveProduct(productName);
+      closeImportProductModal();
+      if (_pendingFile) processImportFile(_pendingFile);
+    }
+
+    // JSON 加载专用弹窗
+    function openImportJsonModal(data) {
+      window._pendingJsonData = data;
+      const cfg = loadProductConfigs();
+      const names = Object.keys(cfg).sort();
+      const active = getActiveProduct();
+      const sel = document.getElementById('import-product-select');
+      sel.innerHTML = names.map(n => `<option value="${n}"${n === active ? ' selected' : ''}>🏷️ ${n}</option>`).join('');
+      sel.onchange = () => {
+        const p = cfg[sel.value] || {};
+        const hint = document.getElementById('import-product-rules-hint');
+        if (hint) {
+          const rules = Object.entries(p.moduleRules || {}).slice(0, 6);
+          hint.innerHTML = `<b>模块归一化示例：</b>${rules.map(([k,v])=>`${k} → ${v}`).join('、')}${Object.keys(p.moduleRules||{}).length > 6 ? '...' : ''}`;
+        }
+      };
+      sel.onchange();
+      document.getElementById('import-product-modal').style.display = 'flex';
+      // 修改确认按钮行为
+      const confirmBtn = document.querySelector('#import-product-modal button:last-child');
+      const newBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+      newBtn.onclick = () => {
+        const productName = document.getElementById('import-product-select').value;
+        setActiveProduct(productName);
+        closeImportProductModal();
+        const d = window._pendingJsonData || [];
+        rawData = d;
+        cleanedData = d;
+        updateHeaderStats();
+        renderFilters();
+        const result = {
+          total: d.length,
+          kept: d.length,
+          records: d,
+          removed: { empty:0, url:0, search:0, short:0, dup:0, lang_short:0 }
+        };
+        document.getElementById('cleaning-report-box').classList.add('hidden');
+        loadResult(result);
+        showToast(`已加载 ${d.length} 条清洗后数据（${productName}）`, 'success');
+      };
+    }
+
+    // 演示数据导入
+    function openImportProductModalForData(data, type) {
+      window._pendingDirectData = { data, type };
+      const cfg = loadProductConfigs();
+      const names = Object.keys(cfg).filter(n => n !== '通用').sort();
+      const active = getActiveProduct();
+      const sel = document.getElementById('import-product-select');
+      sel.innerHTML = `<option value="">— 请选择产品 —</option>` +
+        names.map(n => `<option value="${n}"${n === active ? ' selected' : ''}>🏷️ ${n}</option>`).join('');
+      sel.onchange = () => {
+        const p = cfg[sel.value] || {};
+        const hint = document.getElementById('import-product-rules-hint');
+        if (hint) {
+          const rules = Object.entries(p.moduleRules || {}).slice(0, 6);
+          hint.innerHTML = `<b>模块归一化示例：</b>${rules.map(([k,v])=>`${k} → ${v}`).join('、')}${Object.keys(p.moduleRules||{}).length > 6 ? '...' : ''}`;
+        }
+      };
+      sel.onchange();
+      document.getElementById('import-product-modal').style.display = 'flex';
+      // 修改确认按钮行为
+      const confirmBtn = document.querySelector('#import-product-modal button:last-child');
+      const newBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+      newBtn.onclick = () => {
+        const productName = document.getElementById('import-product-select').value;
+        setActiveProduct(productName);
+        closeImportProductModal();
+        const result = processImportedData(window._pendingDirectData.data);
+        showToast(`已加载演示数据（${productName}）`, 'success');
+      };
+    }
+
+    // ============================================================
+    // DATA PROCESSING
+    // ============================================================
+    function detectSentiment(text) {
+      text = String(text).toLowerCase();
+      // 需求/建议关键词（优先判断）
+      const demandKw = [
+        'hope','wish','please add','please fix','would like','suggest','need more','add feature','feature request',
+        'espero','quiero','quisiera','agregar','añadir','necesito','请增加','希望','建议','增加功能','能否',
+        'voulu','aimerais','voudrais','ajouter','ingin','harap','tambah','хочу','добавить','хотелось'
+      ];
+      // 负面关键词
+      const neg = [
+        'bad','worst','terrible','hate','slow','bug','crash','error','fail','problem','broken',
+        'not work','cannot','can\'t','doesn\'t','won\'t','stuck','freeze','lag','glitch','issue',
+        // 西班牙语
+        'no funciona','falla','error','lento','problema','malo','pésimo','no puedo',
+        'borré','accidente','no sé','no encuentra',
+        // 俄语
+        'не работает','ошибка','проблема','сбой','рассинхрон','медленно',
+        // 印尼语
+        'tidak bisa','tidak mau','error','lambat','gagal','berhenti','masalah',
+        // 中文
+        '无法','不能','失败','卡顿','闪退','崩溃','错误','问题','慢','重新加载','出现',
+        // 法语
+        'ne fonctionne pas','erreur','problème','lent','bloque','marche pas'
+      ];
+      // 正面关键词
+      const pos = [
+        'good','great','love','amazing','best','awesome','perfect','thank','nice','helpful','satisfied','excellent',
+        // 西班牙语
+        'buena','excelente','increíble','gracias','me gusta','muy bien',
+        // 俄语
+        'отлично','спасибо','хорошо','замечательно',
+        // 印尼语
+        'bagus','mantap','terima kasih','keren','suka',
+        // 中文
+        '好用','非常好','推荐','感谢','喜欢','满意',
+        // 法语
+        'merci','excellent','incroyable','super','très bien'
+      ];
+
+      for (const w of demandKw) { if (text.includes(w)) return 'demand'; }
+      let s = 0;
+      pos.forEach(w => { if (text.includes(w)) s++; });
+      neg.forEach(w => { if (text.includes(w)) s--; });
+      if (s > 0) return 'positive';
+      if (s < 0) return 'negative';
+      return 'neutral';
+    }
+    
+    function getQuality(rating, content) {
+      const len = String(content).length;
+      if (len >= 30) return 'A';
+      if (len >= 15) return 'B';
+      return 'C';
+    }
+    
+    // ── 清洗辅助函数 ────────────────────────────────────────────
+    // 乱码检测（方案A）：只过滤真正的乱码堆叠，保留阿拉伯/俄语等各语言正常文字
+    function isGarbled(text) {
+      if (!text || text.length < 5) return false;
+      // 连续重复字符（≥7个，如 fdddddddddddddd）
+      if (/(.)\1{6,}/.test(text)) return true;
+      // 纯乱码序列（无任何有意义文字）
+      if (!/[a-zA-Z0-9\u4e00-\u9fff\u0600-\u06FF\u0400-\u04FF\u0900-\u097F]/.test(text) &&
+          /[^\u0000-\u007F\u4e00-\u9fff\w\s]/.test(text)) return true;
+      return false;
+    }
+
+    // 电话号码检测：过滤联系客服/个人联系方式类反馈
+    function hasPhoneNumber(text) {
+      // 移除换行符后检测
+      const normalized = text.replace(/\s*\n\s*/g, ' ').trim();
+      // 匹配国际电话号码格式：+86、+62、0088，或9位以上连续数字
+      return /(\+\d{1,3}[\s.-]?\d{5,12}|00\d{2,}[\s.-]?\d{5,}|\d{9,15})/.test(normalized);
+    }
+
+    // 单词语义质量检测：过滤乱码词堆叠（如 "Fhfggb Jtjrhrhrj4uehehtju rhryrh4h"）
+    // 乱码词特征（≥4字母的词才检查）：
+    //   A. 无元音
+    //   B. 有元音，但含4+连续辅音（如 "rhryrh"）OR 含3字符重复片段出现≥2次（如 "uehehtju" 中的 "htj"）
+    // 判定：总词数≥5 且 乱码词≥2 → 过滤
+    function hasLowWordQuality(text) {
+      const words = text.match(/[a-zA-Z]+/g) || [];
+      if (words.length < 5) return false;
+      let gibberishCount = 0;
+      words.forEach(w => {
+        if (w.length < 4) return;
+        const hasVowel = /[aeiouAEIOU]/.test(w);
+        if (!hasVowel) { gibberishCount++; return; }
+        if (/[bcdfghjklmnpqrstvwxz]{4,}/i.test(w)) { gibberishCount++; return; }
+        for (let i = 0; i < w.length - 2; i++) {
+          const frag = w.substring(i, i + 3);
+          const vc = (frag.match(/[aeiou]/gi) || []).length;
+          if (vc <= 1 && /[bcdfghjklmnpqrstvwxz]{2,}/i.test(frag)) {
+            const regex = new RegExp(frag, 'gi');
+            const matches = w.match(regex);
+            if (matches && matches.length >= 2) { gibberishCount++; break; }
+          }
+        }
+      });
+      return gibberishCount >= 2;
+    }
+
+    // 测试账号/随机串检测（如 "AKM228"、"ABC123"）
+    // 思路：在字母数字混合词中，检测「字母段是纯辅音且≥3」的片段（如 AK|M228, 22|ABC|44）
+    // 纯辅音 = 片段中不含 a/e/i/o/u（允许含y）
+    // 测试账号/随机串检测（如 "AKM228"）
+    // 极保守规则：4+辅音字母 + 2+数字 或 2+数字 + 4+辅音字母
+    function hasTestAccount(text) {
+      return /[a-z]*[bcdfghjklmnpqrstvwxz]{4,}[a-z]*[0-9]{2,}|[0-9]{2,}[a-z]*[bcdfghjklmnpqrstvwxz]{4,}/i.test(text);
+    }
+
+    // 法语测试片段检测（如 "C'EST TOUJOUR AKM228"）
+    // 撇号紧跟前字母（非 "word's" 格式）+ 混合字母数字串（≥3辅音 + ≥3数字）
+    function hasFrenchTestFragment(text) {
+      // 法语撇号：撇号后面紧跟≥2字母（如 C'EST），前字母只有1个
+      const frenchAp = /[a-z]'[a-z]{2,}(?=\s|$)/i.test(text);
+      if (!frenchAp) return false;
+      // 找字母数字混合串：含≥3辅音字母 + ≥3数字
+      const mixedWords = text.match(/[a-z]*[0-9]+[a-z]*|[a-z]+[0-9]+/gi) || [];
+      return mixedWords.some(w => {
+        const consonants = (w.match(/[bcdfghjklmnpqrstvwxyz]/gi) || []).length;
+        const digits = (w.match(/[0-9]/g) || []).length;
+        return consonants >= 3 && digits >= 3;
+      });
+    }
+
+    // 键盘乱敲检测：过滤无实际含义的字母序列（如 "AKM228"、"Fhfggb"）
+    // 规则1：无元音长词（≥4字母）占比超过40%
+    // 规则2：至少2个无元音长词（兜底样本4类型的短句测试数据）
+    function isKeyboardMash(text) {
+      const words = text.match(/[a-zA-Z]+/g) || [];
+      if (words.length < 2) return false;
+      const gibberish = words.filter(w => w.length >= 4 && !/[aeiouAEIOU]/.test(w));
+      if (gibberish.length >= 2) return true;
+      return gibberish.length / Math.max(words.length, 1) > 0.4;
+    }
+
+    // ── 质量分 Helper ─────────────────────────────────────────────
+    // ai_score (1-5) 优先；无 AI 分时 fallback 到 Python 脚本的 A/B/C
+    // A→5, B→3, C→1（与 ai_score 1-5 等价）
+    function effectiveQuality(r) {
+      if (r.ai_score != null && !isNaN(r.ai_score)) return Number(r.ai_score);
+      const q = String(r.quality || 'C').toUpperCase();
+      return q === 'A' ? 5 : q === 'B' ? 3 : 1;
+    }
+    // 质量等级标签（用于徽章展示）
+    function qualityLabel(r) {
+      if (r.ai_score != null && !isNaN(r.ai_score)) {
+        return `⭐AI ${r.ai_score}分`;
+      }
+      const q = String(r.quality || 'C').toUpperCase();
+      return q === 'A' ? '⭐A级' : q === 'B' ? '📊B级' : '📝C级';
+    }
+    // 质量等级 CSS 类名
+    function qualityClass(r) {
+      if (r.ai_score != null && !isNaN(r.ai_score)) return 'badge-quality-a';
+      const q = String(r.quality || 'C').toUpperCase();
+      return q === 'A' ? 'badge-quality-a' : q === 'B' ? 'badge-quality-b' : 'badge-quality-c';
+    }
+    // 质量分排序值（高分优先，用于 sort）
+    function qualitySortVal(r) {
+      return effectiveQuality(r) * 100 + (r.ai_score != null ? 50 : 0);
+    }
+
+    function cleanRecord(row) {
+      const content = String(row.content || '').trim();
+      const content_zh = String(row.content_zh || '').trim();
+      const id = String(row.id || '');
+      const user = String(row.user || row.region || '匿名用户').trim();
+      const product = String(row.product || '').substring(0, 50);
+      const date = String(row.date || '').split(' ')[0];
+      const sentiment = String(row.sentiment || 'neutral');
+      // 优先使用 Python 脚本输出的 quality，fallback 默认 C
+      const quality = String(row.quality || 'C');
+      const char_count = content.length;
+      const region = String(row.region || '').trim();
+      const device = String(row.device || '').trim();
+      const version = String(row.version || '').trim();
+      const channel = String(row.channel || '').trim();
+      // AI 新增字段：质量分(1-5) 和 高潜用户标记
+      const ai_score = row.ai_score != null ? Number(row.ai_score) : null;
+      const ai_hv = row.ai_hv === true;
+      
+      return { id, user, product, content, content_zh, rating: 3, date, sentiment, quality, char_count, region, device, version, channel, contact: row.contact || '', ai_score, ai_hv, ai_module: row.ai_module || '', os_version: row.os_version || '', ops_notes: row.ops_notes || '' };
+    }
+    
+    // ── 数据清洗主逻辑 ─────────────────────────────────────────
+    // 清洗时机：导入时优先执行（先清洗 → AI 只分析清洗后的有效数据）
+    // removed 统计不含 AI invalid（AI 无效反馈单独在 runAiEnrich 中统计）
+    function processImportedData(data) {
+      let records = data.map(r => cleanRecord(r));
+      
+      let removed = { empty: 0, pureUrl: 0, shortWords: 0, garbled: 0, phone: 0, wordQuality: 0, keyboardMash: 0, testAccount: 0, frenchTest: 0, dup: 0 };
+      const seen = new Set();
+      let cleaned = [];
+      
+      records.forEach(r => {
+        const c = r.content.trim();
+        const c_lower = c.toLowerCase();
+        
+        // 空值
+        if (!c || c === 'nan' || c === 'undefined') {
+          removed.empty++;
+          return;
+        }
+        // 纯URL：仅包含 http:// 或 https:// 链接，无其他文本
+        if (/^https?:\/\/[^\s]+$/i.test(c)) {
+          removed.pureUrl++;
+          return;
+        }
+        // 极短内容：≤3个单词（以空格分词）或总字符数 < 10
+        const words = c.split(/\s+/).filter(w => w.length > 0);
+        if (words.length <= 3 || c.replace(/\s/g, '').length < 10) {
+          removed.shortWords++;
+          return;
+        }
+        // 乱码检测
+        if (isGarbled(c)) {
+          removed.garbled++;
+          return;
+        }
+        // 电话号码过滤
+        if (hasPhoneNumber(c)) {
+          removed.phone++;
+          return;
+        }
+        // 单词语义质量过滤（乱码词堆叠）
+        if (hasLowWordQuality(c)) {
+          removed.wordQuality++;
+          return;
+        }
+        // 键盘乱敲过滤（无元音字母序列）
+        if (isKeyboardMash(c)) {
+          removed.keyboardMash++;
+          return;
+        }
+        // 测试账号/随机串过滤（4+辅音+数字）
+        if (hasTestAccount(c)) {
+          removed.testAccount++;
+          return;
+        }
+        // 法语测试片段过滤（如 C'EST TOUJOUR AKM228）
+        if (hasFrenchTestFragment(c)) {
+          removed.frenchTest++;
+          return;
+        }
+        // 重复内容
+        if (seen.has(c_lower)) {
+          removed.dup++;
+          return;
+        }
+        seen.add(c_lower);
+        cleaned.push(r);
+      });
+      
+      const total = records.length;
+      const kept = cleaned.length;
+      return { total, kept, removed, records: cleaned };
+    }
+    
+    function generateSampleData() {
+      const data = [];
+      const regions = ['印度尼西亚','菲律宾','印度','俄罗斯联邦','委内瑞拉','巴基斯坦','孟加拉国','厄瓜多尔','伊拉克','尼日利亚','巴西','埃及','墨西哥','哥伦比亚','土耳其'];
+
+      // 两套产品数据
+      const vishaModules = ['本地视频','下载功能','本地音频','其他','隐私文件夹','在线视频','整体/稳定性/更新'];
+      const notesModules = ['文本编辑','AI能力','云服务','视觉&交互','加密笔记','提醒相关','整体/稳定性/更新','其他'];
+
+      const vishaContents = [
+        'Cannot play downloaded video files, it keeps saying format not supported',
+        'Download feature stopped working after the last update, please fix this',
+        'Audio files downloaded to the app sound distorted and low quality',
+        'Love the privacy folder feature, very secure and easy to use',
+        'Online streaming videos buffer constantly, very frustrating experience',
+        'App crashes every time I try to record screen, extremely buggy',
+        'Video player is amazing, best one I have found so far',
+        'Download speed is extremely slow, takes forever to download one video',
+        'The app always restarts randomly when I switch between videos',
+        'Can you add support for more video formats like MKV and AVI?',
+        'Local audio player is great but missing an equalizer feature',
+        'App takes too long to start up, please optimize the loading time',
+        'Privacy folder is the reason I use this app, please keep improving it',
+        'Very good app overall, I have been using it for months now',
+        'Online video streaming quality is not as good as other apps',
+        'The download button sometimes does not respond when I tap it',
+        'Love the dark mode, very easy on the eyes at night',
+        'Screen recording audio is out of sync with the video',
+        'Please add more languages for subtitles, especially Portuguese',
+        '每次打开本地视频都要重新搜索，希望能记住最近播放',
+        '下载功能非常好用，已经下载了很多视频离线看了',
+        '应用经常闪退，尤其是在播放大文件的时候',
+        '希望增加视频剪辑功能，比如剪切和合并视频',
+        '本地音频播放音质很好，但希望能支持更多格式',
+        '隐私文件夹密码设置后偶尔无法解锁，需要重启应用'
+      ];
+
+      const notesContents = [
+        'Cannot sync notes to cloud after the latest update, very frustrating',
+        'AI summarization feature is amazing and saves me so much time',
+        'Text formatting options are limited, please add more fonts and colors',
+        'Cloud sync between devices is not working properly, notes disappear',
+        'Love the encrypted notes feature, very secure and private',
+        'Reminder notifications do not fire at the scheduled time',
+        'App crashes when I try to open large notes with lots of images',
+        'The AI assistant helps me draft emails very quickly, great tool',
+        'Cannot export notes to PDF format as promised in the description',
+        'Dark mode theme is perfect for night time note taking',
+        'Please add handwriting support for stylus users like me',
+        'Cloud backup works perfectly across my phone and tablet',
+        'The text editor sometimes loses formatting when I copy and paste',
+        'Reminder feature is very useful for my daily task management',
+        'Visual design is beautiful and clean, very pleasant to use',
+        'Cannot lock individual notes with biometric password',
+        'AI translation feature is not accurate enough for complex sentences',
+        'Notes sometimes get duplicated after syncing with cloud',
+        'Please add more templates for different types of notes',
+        '加密笔记功能非常好用，保护了我的隐私内容',
+        '云同步速度太慢了，希望能优化一下同步效率',
+        '文本编辑器的字体选择太少了，希望能增加更多选项',
+        'AI助手可以帮助我快速整理会议记录，非常实用',
+        '提醒功能有时候不响，导致我错过了重要事项',
+        '视觉效果很现代，界面设计简洁大方，很喜欢'
+      ];
+
+      const allProducts = [
+        { name: 'Visha', modules: vishaModules, contents: vishaContents },
+        { name: 'Notes', modules: notesModules, contents: notesContents },
+      ];
+
+      for (let i = 0; i < 500; i++) {
+        // 随机选一个产品
+        const product = allProducts[Math.floor(Math.random() * allProducts.length)];
+        const content = product.contents[Math.floor(Math.random() * product.contents.length)];
+        const daysAgo = Math.floor(Math.random() * 90);
+        const date = new Date();
+        date.setDate(date.getDate() - daysAgo);
+        data.push({
+          id: 2000 + i,
+          user: regions[Math.floor(Math.random() * regions.length)],
+          region: regions[Math.floor(Math.random() * regions.length)],
+          product: product.modules[Math.floor(Math.random() * product.modules.length)],
+          content: content,
+          content_zh: '',
+          rating: Math.floor(Math.random() * 3) + 3,
+          date: date.toISOString().split('T')[0],
+          sentiment: detectSentiment(content),
+          quality: getQuality(3, content),
+          char_count: content.length,
+          device: '',
+          version: '',
+          channel: ''
+        });
+      }
+      return data;
+    }
+    
+    // ============================================================
+    // UI HELPERS
+    // ============================================================
+    function showToast(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      t.innerHTML = `<span style="font-weight:700;">${icon}</span><span>${msg}</span>`;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    }
+    
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+      document.getElementById(`section-${tabId}`).classList.add('active');
+      
+      if (tabId === 'overview') renderOverview();
+      if (tabId === 'summary') renderSummary();
+      if (tabId === 'highvalue') renderHighValue();
+    }
+    
+    function updateHeaderStats() {
+      const data = cleanedData || [];
+      const regions = new Set(data.map(r => r.region).filter(Boolean));
+      const dates = data.map(r => r.date).filter(d => d).sort();
+      let dateRange = '—';
+      if (dates.length > 0) {
+        const oldest = dates[0];
+        const newest = dates[dates.length - 1];
+        dateRange = oldest === newest ? oldest : `${oldest} ~ ${newest}`;
+      }
+      document.getElementById('stat-total').textContent = (rawData || []).length || '—';
+      document.getElementById('stat-kept').textContent = (cleanedData || []).length || '—';
+      document.getElementById('stat-date-range').textContent = dateRange;
+    }
+    
+    // ============================================================
+    // RENDER FUNCTIONS
+    // ============================================================
+    function renderStats(data, containerId) {
+      data = data || [];
+      const total = data.length;
+      const sent = { positive: 0, negative: 0, demand: 0 };
+      data.forEach(r => {
+        const k = r.sentiment || 'neutral';
+        if (k === 'negative') sent.negative++;
+        else if (k === 'demand') sent.demand++;
+        else sent.positive++;
+      });
+      
+      const cards = [
+        { icon: '💬', label: '有效反馈', value: total, color: '' },
+        { icon: '👍', label: '正反馈', value: sent.positive, color: '#059669' },
+        { icon: '👎', label: '负反馈', value: sent.negative, color: '#dc2626' },
+        { icon: '💡', label: '需求/建议', value: sent.demand, color: '#7c3aed' },
+      ];
+      
+      document.getElementById(containerId).innerHTML = cards.map(c => `
+        <div class="stat-card">
+          <div class="stat-icon">${c.icon}</div>
+          <div class="stat-label">${c.label}</div>
+          <div class="stat-value" style="${c.color ? 'color:'+c.color : ''}">${c.value}</div>
+        </div>
+      `).join('');
+    }
+    
+    function renderFilters() {
+      const data = cleanedData || [];
+      const regions = [...new Set(data.map(r => r.region).filter(Boolean))].sort();
+      const modules = [...new Set(data.map(r => r.product).filter(Boolean))].sort();
+      
+      document.getElementById('f-region').innerHTML = '<option value="">全部地区</option>' + regions.map(r => `<option value="${r}">${r}</option>`).join('');
+      document.getElementById('f-module').innerHTML = '<option value="">全部模块</option>' + modules.map(m => `<option value="${m}">${m}</option>`).join('');
+      document.getElementById('hv-module').innerHTML = '<option value="">全部模块</option>' + modules.map(m => `<option value="${m}">${m}</option>`).join('');
+    }
+    
+    function getFiltered() {
+      const region = document.getElementById('f-region')?.value || '';
+      const quality = document.getElementById('f-quality')?.value || '';
+      const sentiment = document.getElementById('f-sentiment')?.value || '';
+      const module = document.getElementById('f-module')?.value || '';
+      const keyword = document.getElementById('f-search')?.value || '';
+
+      const filtered = (cleanedData || []).filter(r => {
+        if (region && r.region !== region) return false;
+        if (quality && r.quality !== quality) return false;
+        if (sentiment && r.sentiment !== sentiment) return false;
+        if (module && r.product !== module) return false;
+        if (keyword) {
+          const kw = keyword.toLowerCase();
+          if (!String(r.content).toLowerCase().includes(kw) && !String(r.content_zh).toLowerCase().includes(kw)) return false;
+        }
+        return true;
+      });
+
+      // 按质量分降序排列（ai_score 优先，其次 fallback 质量 A/B）
+      filtered.sort((a, b) => effectiveQuality(b) - effectiveQuality(a));
+      return filtered;
+    }
+    
+    function initCharts() {
+      Object.values(charts).forEach(c => { try { c.destroy(); } catch(e) {} });
+      charts = {};
+      Chart.defaults.font.family = '-apple-system, sans-serif';
+      Chart.defaults.color = '#64748b';
+    }
+    
+    function renderOverview() {
+      const filtered = getFiltered();
+      renderStats(filtered, 'stats-grid');
+      renderCharts(filtered);
+    }
+    
+    function renderCharts(data) {
+      data = data || [];
+      // Trend
+      const byDate = {};
+      data.forEach(r => { byDate[r.date] = (byDate[r.date] || 0) + 1; });
+      const dates = Object.keys(byDate).sort().slice(-30);
+      
+      if (charts.trend) charts.trend.destroy();
+      charts.trend = new Chart(document.getElementById('chart-trend'), {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [{
+            label: '反馈量',
+            data: dates.map(d => byDate[d]),
+            borderColor: '#4f46e5',
+            backgroundColor: 'rgba(79,70,229,0.08)',
+            fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6,
+            borderWidth: 2
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxRotation: 45 } } } }
+      });
+      
+      // Sentiment（只展示3种：正面/负面/需求建议，中性归入正面或忽略）
+      const sentCnt = { positive: 0, negative: 0, demand: 0 };
+      data.forEach(r => {
+        const k = r.sentiment || 'neutral';
+        if (k === 'negative') sentCnt.negative++;
+        else if (k === 'demand') sentCnt.demand++;
+        else sentCnt.positive++; // positive + neutral 都归正面
+      });
+      
+      if (charts.sentiment) charts.sentiment.destroy();
+      charts.sentiment = new Chart(document.getElementById('chart-sentiment'), {
+        type: 'doughnut',
+        data: {
+          labels: ['正反馈', '负反馈', '需求建议'],  // invalid 不在图表中（已过滤）
+          datasets: [{
+            data: [sentCnt.positive, sentCnt.negative, sentCnt.demand],
+            backgroundColor: ['#059669', '#dc2626', '#7c3aed'],
+            borderWidth: 0, hoverOffset: 6
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+      });
+      
+      // Module — 使用 AI 推理的模块分类，与典型问题统计的模块对齐
+      const byModule = {};
+      data.forEach(r => {
+        const mod = inferModuleFromContent(r) || '其他';
+        byModule[mod] = (byModule[mod] || 0) + 1;
+      });
+      // 按产品配置模块顺序（其他排最后），只展示有数据的模块
+      const _chartCfg = getStatsConfig();
+      const modEntries = _chartCfg.modules
+        .filter(m => (byModule[m] || 0) > 0)
+        .map(m => [m, byModule[m] || 0]);
+      const modColors = ['#4f46e5','#7c3aed','#db2777','#059669','#d97706','#dc2626','#0891b2','#64748b','#0d9488','#b45309'];
+
+      if (charts.module) charts.module.destroy();
+      charts.module = new Chart(document.getElementById('chart-module'), {
+        type: 'bar',
+        data: {
+          labels: modEntries.map(e => e[0].length > 12 ? e[0].substring(0,12)+'...' : e[0]),
+          datasets: [{
+            label: '反馈数',
+            data: modEntries.map(e => e[1]),
+            backgroundColor: modColors,
+            borderRadius: 6
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, indexAxis: 'y', scales: { x: { beginAtZero: true } } }
+      });
+
+      // Region distribution
+      const byRegion = {};
+      data.forEach(r => { byRegion[r.region || '未知'] = (byRegion[r.region || '未知'] || 0) + 1; });
+      const regEntries = Object.entries(byRegion).sort((a,b) => b[1]-a[1]).slice(0, 10);
+      const regColors = ['#4f46e5','#7c3aed','#db2777','#059669','#d97706','#dc2626','#0891b2','#6366f1','#0d9488','#64748b'];
+
+      if (charts.region) charts.region.destroy();
+      charts.region = new Chart(document.getElementById('chart-region'), {
+        type: 'bar',
+        data: {
+          labels: regEntries.map(e => e[0].length > 10 ? e[0].substring(0,10)+'…' : e[0]),
+          datasets: [{
+            label: '反馈数',
+            data: regEntries.map(e => e[1]),
+            backgroundColor: regColors,
+            borderRadius: 6
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxRotation: 30 } } } }
+      });
+
+      // Device distribution (negative feedback only)
+      const negData = data.filter(r => r.sentiment === 'negative');
+      const byDevice = {};
+      negData.forEach(r => {
+        const dev = r.device || '未知/未填写';
+        byDevice[dev] = (byDevice[dev] || 0) + 1;
+      });
+      const devEntries = Object.entries(byDevice).sort((a,b) => b[1]-a[1]).slice(0, 10);
+      const devColors = ['#dc2626','#ef4444','#f87171','#fca5a5','#b91c1c','#991b1b','#7f1d1d','#dc2626','#ef4444','#f87171'];
+
+      if (charts.device) charts.device.destroy();
+      charts.device = new Chart(document.getElementById('chart-device'), {
+        type: 'bar',
+        data: {
+          labels: devEntries.map(e => e[0].length > 14 ? e[0].substring(0,14)+'…' : e[0]),
+          datasets: [{
+            label: '负反馈数',
+            data: devEntries.map(e => e[1]),
+            backgroundColor: devColors,
+            borderRadius: 6
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, indexAxis: 'y', scales: { x: { beginAtZero: true } } }
+      });
+
+    }
+    
+    function renderSummary() { try {
+      // 双重防护：确保 cleanedData 是有效数组
+      const safeData = Array.isArray(cleanedData) ? cleanedData : [];
+      if (safeData.length === 0) {
+        const el1 = document.getElementById('issue-stats-cards');
+        const el2 = document.getElementById('typical-issues');
+        const el3 = document.getElementById('highlight-list');
+        if (el1) el1.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-lighter);font-size:0.85rem;">请先导入数据</div>';
+        if (el2) el2.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-lighter);">请先导入数据</div>';
+        if (el3) el3.innerHTML = '<li style="text-align:center;padding:20px;color:var(--text-lighter);">请先导入数据</li>';
+        return;
+      }
+
+      // ── 全量数据分析（每次上传即全量） ──
+      const allData = safeData;
+      document.querySelector('#section-summary .section-title').textContent = '全量数据总结';
+      renderStats(allData, 'summary-stats');
+
+      // ── 高频典型问题（按功能模块聚合，含摘要 + 点击展开）──
+      const _statsCfg = getStatsConfig();
+      const moduleIssues = {};
+      _statsCfg.modules.forEach(m => { moduleIssues[m] = { count: 0, negative: 0, demand: 0, allFeedback: [], themes: [] }; });
+
+      allData.forEach(r => {
+        if (r.sentiment !== 'negative' && r.sentiment !== 'demand') return;
+        const mod = inferModuleFromContent(r) || '其他';
+        if (!moduleIssues[mod]) moduleIssues[mod] = { count: 0, negative: 0, demand: 0, allFeedback: [], themes: [] };
+        moduleIssues[mod].count++;
+        if (r.sentiment === 'negative') moduleIssues[mod].negative++;
+        if (r.sentiment === 'demand') moduleIssues[mod].demand++;
+
+        // 收集全部负面/需求反馈，展开时按质量分排序取TOP15
+        moduleIssues[mod].allFeedback.push(r);
+
+        // 从中文翻译内容中提取关键词
+        const zh = (r.content_zh || '').toLowerCase();
+        (_statsCfg.keywords[mod] || []).forEach(kw => {
+          const kwLower = kw.toLowerCase();
+          if (kwLower.length < 4 && /[a-z]/.test(kwLower)) return;
+          if (zh.includes(kwLower)) moduleIssues[mod].themes.push(kw);
+        });
+        moduleIssues[mod].themes = [...new Set(moduleIssues[mod].themes)]; // 去重
+      });
+
+      // 「其他」排到最后，其余按数量降序
+      const sortedModules = _statsCfg.modules
+        .map(mod => ({ mod, info: moduleIssues[mod] }))
+        .filter(({ info }) => info.count > 0)
+        .sort((a, b) => {
+          if (a.mod === '其他') return 1;
+          if (b.mod === '其他') return -1;
+          return b.info.count - a.info.count;
+        });
+
+      const sentBadge = s => s === 'negative'
+        ? '<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:#fee2e2;color:#991b1b;">👎负反馈</span>'
+        : '<span style="font-size:0.65rem;padding:1px 5px;border-radius:3px;background:#ede9fe;color:#5b21b6;">💡需求</span>';
+
+      document.getElementById('typical-issues').innerHTML = sortedModules.length > 0
+        ? sortedModules.map(({ mod, info }, idx) => {
+          // 生成模块摘要：从主题词中取最多3个组成摘要
+          const themeArr = (info.themes || []).slice(0, 3);
+          const summary = themeArr.length > 0
+            ? `主要集中在${themeArr.join('、')}`
+            : '存在典型问题待处理';
+          // 展开内容：取该模块全部负面/需求反馈，按质量分降序取TOP15
+          const top15 = (info.allFeedback || [])
+            .sort((a, b) => effectiveQuality(b) - effectiveQuality(a))
+            .slice(0, 15);
+
+          return `
+          <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:3px;">🏷️ ${mod.length > 28 ? mod.substring(0,26)+'…' : mod}</div>
+                <div style="font-size:0.75rem;color:var(--text-light);line-height:1.4;">${summary}</div>
+              </div>
+              <div style="display:flex;gap:6px;font-size:0.72rem;color:var(--text-light);flex-shrink:0;align-items:center;">
+                ${info.negative > 0 ? `<span style="color:#dc2626;">👎${info.negative}</span>` : ''}
+                ${info.demand > 0 ? `<span style="color:#7c3aed;">💡${info.demand}</span>` : ''}
+                <span>共${info.count}条</span>
+                ${info.count > 0 ? `<button onclick="toggleIssue(${idx})" id="issue-btn-${idx}" style="background:var(--primary);color:#fff;border:none;border-radius:4px;padding:1px 7px;font-size:0.68rem;cursor:pointer;">展开</button>` : ''}
+              </div>
+            </div>
+            <div id="issue-samples-${idx}" style="display:none;max-height:400px;overflow-y:auto;">
+              ${top15.map((s, ti) => {
+                const qs = effectiveQuality(s);
+                return `<div style="font-size:0.78rem;color:var(--text-light);padding:7px 10px;background:var(--bg);border-radius:5px;margin-bottom:4px;line-height:1.5;">
+                  <span style="font-size:0.65rem;color:var(--text-lighter);margin-right:4px;">#${ti+1}</span>${sentBadge(s.sentiment)}
+                  <span style="margin-left:5px;">${(s.content||'').substring(0,120)}</span>
+                  ${s.content_zh && s.content_zh !== s.content ? `<div style="color:var(--text-lighter);font-size:0.72rem;margin-top:3px;padding-left:44px;">📖 ${s.content_zh.substring(0,200)}</div>` : ''}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        }).join('')
+        : '<div style="text-align:center;padding:20px;color:var(--text-lighter);">暂无数据</div>';
+
+      // ── 典型问题统计卡片（使用统一模块配置，其他排最后）──
+      const statsModules = _statsCfg.modules;
+      const maxCount = Math.max(...statsModules.map(m => moduleIssues[m]?.count || 0), 1);
+      const statsCardsHTML = statsModules.length > 0
+        ? statsModules.map(mod => {
+          const info = moduleIssues[mod] || { count: 0, negative: 0, demand: 0, themes: [], allFeedback: [] };
+          const themeArr = (info.themes || []).slice(0, 3);
+          // 从样本内容中提取关键词描述（取该模块质量分最高的反馈内容）
+          const top = (info.allFeedback || []).sort((a,b) => effectiveQuality(b)-effectiveQuality(a));
+          const sampleDesc = top.length > 0
+            ? ((top[0].content_zh || top[0].content) || '').substring(0, 60)
+            : '';
+          const topTheme = themeArr.length > 0 ? themeArr.join('、') : (sampleDesc || '暂无有效反馈');
+          const negRatio = info.count > 0 ? (info.negative / info.count * 100).toFixed(0) : 0;
+          const demandRatio = info.count > 0 ? (info.demand / info.count * 100).toFixed(0) : 0;
+          const barWidth = Math.min(100, info.count / (maxCount || 1) * 100);
+          const isEmpty = info.count === 0;
+          return `
+          <div style="background:var(--bg);border:1px solid ${isEmpty ? 'var(--border)' : 'var(--primary)'};border-radius:10px;padding:12px 14px;opacity:${isEmpty ? 0.55 : 1};">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:0.82rem;font-weight:600;color:var(--text);">🏷️ ${mod.length > 16 ? mod.substring(0,14)+'…' : mod}</span>
+              <span style="font-size:0.82rem;font-weight:700;color:${isEmpty ? 'var(--text-lighter)' : 'var(--primary)'};">${info.count}条</span>
+            </div>
+            <div style="font-size:0.73rem;color:var(--text-light);margin-bottom:8px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${sampleDesc}">🔍 ${topTheme}${sampleDesc && topTheme !== sampleDesc ? '…' : ''}</div>
+            <div style="display:flex;gap:10px;font-size:0.72rem;margin-bottom:6px;">
+              <span style="color:#dc2626;">👎 负面 ${info.negative}条 ${info.count > 0 ? '('+negRatio+'%)' : ''}</span>
+              <span style="color:#7c3aed;">💡 需求 ${info.demand}条 ${info.count > 0 ? '('+demandRatio+'%)' : ''}</span>
+            </div>
+            <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+              <div style="width:${barWidth}%;background:${isEmpty ? 'var(--border)' : 'var(--primary)'};height:100%;border-radius:4px;transition:width 0.3s;"></div>
+            </div>
+          </div>`;
+        }).join('')
+        : '<div style="text-align:center;padding:16px;color:var(--text-lighter);font-size:0.85rem;">暂无典型问题数据</div>';
+
+      document.getElementById('issue-stats-cards').innerHTML = statsCardsHTML;
+
+      // 全局展开状态
+      window._issueExpanded = window._issueExpanded || {};
+      window.toggleIssue = function(idx) {
+        const el = document.getElementById('issue-samples-' + idx);
+        const btn = document.getElementById('issue-btn-' + idx);
+        if (!el) return;
+        window._issueExpanded[idx] = !window._issueExpanded[idx];
+        el.style.display = window._issueExpanded[idx] ? 'block' : 'none';
+        btn.textContent = window._issueExpanded[idx] ? '收起' : '展开';
+      };
+
+
+      // ── 重点反馈（读取30条，默认展示15条，支持分页+删除） ──
+      const ACTIONABLE_KEYWORDS = [
+        'fix','bug','error','crash','freeze','lag','slow','broken','not work','doesn\'t work',
+        'cannot','can\'t','unable','fail','failed','problem','issue','stuck',
+        'please add','please fix','hope','wish','need','want','suggest','建议',
+        'download','play','record','screen','audio','video','sound','music',
+        '崩溃','卡顿','下载','播放','修复','问题','功能','增加','无法','不能',
+      ];
+      const TEMPLATE_PATTERNS = [
+        /(.)\1{6,}/,
+        /^(.{1,5}\s+){5,}/,
+        /^[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}/i,
+      ];
+
+      function getSemanticScore(r) {
+        let score = 0;
+        const content = (r.content || '').toLowerCase();
+        const zh = (r.content_zh || '').toLowerCase();
+        const combined = content + ' ' + zh;
+        const len = (r.content || '').length;
+        const qScore = { A: 10, B: 5, C: 0 };
+        score += qScore[r.quality] || 0;
+        const sentWeight = { negative: 3, demand: 3, positive: 1, neutral: 0 };
+        score += sentWeight[r.sentiment] || 0;
+        const hasActionable = ACTIONABLE_KEYWORDS.some(kw => combined.includes(kw));
+        if (hasActionable) score += 4;
+        if (len >= 30 && len <= 300) score += 3;
+        else if (len > 300 && len <= 500) score += 1;
+        else if (len < 15) score -= 3;
+        const hasTemplate = TEMPLATE_PATTERNS.some(pat => pat.test(r.content || ''));
+        if (hasTemplate) score -= 8;
+        // 有真实联系方式（可回访用户），GooglePlay/AppStore等渠道名不算
+        if (isRealContact(r.contact)) score += 5;
+        const junkChars = (r.content || '').replace(/[a-zA-Z0-9\u4e00-\u9fff\s,.!?;:'"-]/g, '').length;
+        if (junkChars / len > 0.25) score -= 6;
+        return score;
+      }
+
+      // 全局重点反馈删除集合
+      window._hlDeletedIds = window._hlDeletedIds || new Set();
+      window._hlPage = window._hlPage || 1;
+      const HL_PAGE_SIZE = 15;
+
+      const hlAll = [...allData]
+        .filter(r => !window._hlDeletedIds.has(String(r.id)))
+        .map(r => ({ r, score: getSemanticScore(r) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+
+      window._hlAll = hlAll;
+      document.getElementById('highlight-count-label').textContent = `(共${hlAll.length}条)`;
+
+      // 一次性渲染全部 TOP30，无需分页
+      document.getElementById('highlight-list').innerHTML = hlAll.length > 0
+        ? hlAll.map((item, idx) => {
+          const r = item.r;
+          const sentIcon = { positive:'👍', negative:'👎', demand:'💡', neutral:'👍' }[r.sentiment] || '👍';
+          const sentLabel = { positive:'正反馈', negative:'负反馈', demand:'需求', neutral:'正反馈', invalid:'无效' }[r.sentiment] || '正反馈';
+          const qScore = effectiveQuality(r);
+          const qBadge = r.ai_score != null
+            ? `<span style="background:#f0f9ff;color:#0369a1;font-size:0.68rem;padding:1px 6px;border-radius:3px;font-weight:600;">⭐AI ${r.ai_score}分</span>`
+            : `<span style="background:${qScore >= 5 ? '#dcfce7' : qScore >= 3 ? '#fef3c7' : '#fee2e2'};color:${qScore >= 5 ? '#166534' : qScore >= 3 ? '#92400e' : '#991b1b'};font-size:0.68rem;padding:1px 6px;border-radius:3px;font-weight:600;">${qualityLabel(r)}</span>`;
+          return `
+          <li class="highlight-item" style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">
+            <span class="highlight-num" style="flex-shrink:0;width:24px;height:24px;background:var(--primary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;">${idx + 1}</span>
+            <div class="highlight-content" style="flex:1;min-width:0;">
+              <div class="highlight-text" style="font-size:0.85rem;line-height:1.5;margin-bottom:4px;">${r.content}</div>
+              ${r.content_zh && r.content_zh !== r.content ? `<div style="color:var(--text-light);font-size:0.78rem;margin-bottom:4px;">📖 ${r.content_zh}</div>` : ''}
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                ${qBadge}
+                <span style="font-size:0.68rem;padding:1px 6px;border-radius:3px;${r.sentiment==='negative'?'background:#fee2e2;color:#991b1b':r.sentiment==='demand'?'background:#ede9fe;color:#5b21b6':'background:#f1f5f9;color:#475569'}">${sentIcon}${sentLabel}</span>
+                <span style="font-size:0.72rem;color:var(--text-light);">📍${r.region || '未知'}</span>
+                <span style="font-size:0.72rem;color:var(--text-light);">🏷️${r.product || ''}</span>
+                ${r.device ? `<span style="font-size:0.72rem;color:var(--text-light);">📱${r.device}</span>` : ''}
+                <span style="font-size:0.72rem;color:var(--text-light);">📅${r.date || ''}</span>
+              </div>
+            </div>
+            <button onclick="hlDeleteItem(${r.id})" title="删除此条（仅当前会话有效）" style="flex-shrink:0;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:0.68rem;color:#dc2626;cursor:pointer;opacity:0.7;">✕ 删除</button>
+          </li>`;
+        }).join('')
+        : '<li style="text-align:center;padding:20px;color:var(--text-lighter);">暂无重点反馈</li>';
+      document.getElementById('highlight-pagination').innerHTML = '';
+
+      window.hlDeleteItem = function(id) {
+        window._hlDeletedIds.add(String(id));
+        renderSummary();   // 重新完整渲染，使 hlAll 过滤生效
+        showToast('已从重点反馈中移除', 'success');
+      };
+    } catch(e) {
+      const stack = e.stack || '';
+      console.error('[renderSummary] 渲染出错:', e.message, '\n调用栈:', stack.substring(0, 800));
+      const errMsg = `<div style="padding:16px;color:#dc2626;font-size:0.82rem;">渲染出错: ${e.message}<br><span style="font-size:0.7rem;color:#888;">位置: ${stack.substring(0, 200).replace(/\n/g,' | ')}</span></div>`;
+      ['typical-issues','issue-stats-cards'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = errMsg; });
+      const hl = document.getElementById('highlight-list'); if(hl) hl.innerHTML = `<li style="padding:16px;color:#dc2626;font-size:0.82rem;">渲染出错: ${e.message}</li>`;
+    }}
+    
+    // 判断是否是真实联系方式（邮箱 / 手机号），排除 GooglePlay/AppStore 等渠道名占位符
+    function isRealContact(c) {
+      if (!c) return false;
+      const s = String(c).trim();
+      if (!s) return false;
+      if (s.includes('@')) return true;           // 邮箱
+      if (/^\+\d{6,}$/.test(s)) return true;     // 国际手机号
+      if (/^\d{8,}$/.test(s)) return true;        // 纯数字手机号
+      return false;
+    }
+
+    let hvPage = 1;
+    let hvPageSize = 10;
+    // 人工标记删除的高价值反馈 ID 集合（仅内存，刷新重置）
+    let hvDeletedIds = new Set();
+    // 当前筛选后的完整列表（用于导出）
+    let hvExportList = [];
+
+    function hvDelete(id) {
+      hvDeletedIds.add(String(id));
+      renderHighValue();
+    }
+
+    function hvExport() {
+      if (!hvExportList.length) { showToast('无数据可导出', 'error'); return; }
+      const exportData = hvExportList.map((r, i) => {
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : '';
+        const module = inferModuleFromContent({ product: r.product, content: r.content, content_zh: r.content_zh });
+        return {
+          '排名': i + 1,
+          '质量分': effectiveQuality(r),
+          '质量等级': r.quality || 'C',
+          '情感': r.sentiment === 'positive' ? '正反馈' : r.sentiment === 'negative' ? '负反馈' : r.sentiment === 'demand' ? '需求/建议' : r.sentiment === 'invalid' ? '无效反馈' : '中性',
+          '地区': r.region || '',
+          '功能模块': module,
+          '设备': r.device || '',
+          '版本': r.version || '',
+          '产品': r.product || '',
+          '渠道': r.channel || '',
+          '联系方式': contactKey,
+          '字数': r.char_count || (r.content || '').length,
+          '日期': r.date || '',
+          '高潜标记': (r._hvScore || 0) >= 6 ? '是' : '否',
+          '高潜评分': r._hvScore || 0,
+          '人工备注': window._hvNotes[String(r.id)] || '',
+          '反馈内容': r.content || '',
+          '中文翻译': r.content_zh || '',
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '反馈详情');
+      XLSX.writeFile(wb, `反馈详情_${new Date().toISOString().slice(0,10)}.xlsx`);
+      showToast(`已导出 ${hvExportList.length} 条反馈`, 'success');
+    }
+
+    // 评分缓存（供导出时使用）
+    let hvScoreMap = {};
+
+    function renderHighValue() {
+      const sentiment = document.getElementById('hv-sentiment').value;
+      const quality   = document.getElementById('hv-quality').value;
+      const module    = document.getElementById('hv-module').value;
+      const isHv      = document.getElementById('hv-ishv')?.value || '';
+      const keyword   = (document.getElementById('hv-search').value || '').toLowerCase();
+      const data = cleanedData || [];
+
+      // ── 用户反馈次数统计（用于显示"×N次反馈"标记）──
+      const userFeedbackCount = {};
+      data.forEach(r => {
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+        const u = contactKey || r.user || null;
+        if (u) userFeedbackCount[u] = (userFeedbackCount[u] || 0) + 1;
+      });
+
+      // 排除已人工删除的反馈
+      let list = data.filter(r => !hvDeletedIds.has(String(r.id)));
+
+      const ACTIONABLE = [
+        'fix','bug','error','crash','freeze','lag','slow','broken','not work','doesn\'t work',
+        'cannot','can\'t','unable','fail','stuck','issue','problem',
+        'please add','please fix','hope','wish','need','want','suggest',
+        '崩溃','卡顿','下载','播放','修复','问题','功能','增加','无法','不能','建议',
+      ];
+
+      function hvScoreCalc(r) {
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+        const len = (r.content || '').length;
+        const combined = ((r.content || '') + ' ' + (r.content_zh || '')).toLowerCase();
+        let s = 0;
+        s += ({ A: 3, B: 1 }[String(r.quality || '').toUpperCase()] || 0);
+        if (len >= 80) s += 3;
+        else if (len >= 50) s += 1;
+        else if (len < 20) s -= 2;
+        if (r.version && r.version !== 'N/A') s += 1;
+        if (r.device && r.device !== 'N/A') s += 1;
+        if (ACTIONABLE.some(kw => combined.includes(kw))) s += 4;
+        s += ({ negative: 3, demand: 4, positive: 0, neutral: 0, invalid: -99 }[r.sentiment] || 0);
+        if (contactKey) s += 2;
+        if (r.ai_score != null) s += Math.floor(r.ai_score);
+        if (r.ai_hv) s += 5;
+        return s;
+      }
+
+      const HV_THRESHOLD = 6;
+
+      // 先计算 hvScore（后续筛选和排序都要用到）
+      list.forEach(r => { r._hvScore = hvScoreCalc(r); });
+
+      // 应用筛选（不再有质量≥2的硬过滤，展示所有清洗后的反馈）
+      list = list.filter(r => {
+        if (sentiment && r.sentiment !== sentiment) return false;
+        if (quality) {
+          const minScore = parseInt(quality);
+          if (effectiveQuality(r) < minScore) return false;
+        }
+        if (module) {
+          const mod = inferModuleFromContent({ product: r.product, content: r.content, content_zh: r.content_zh });
+          if (mod !== module) return false;
+        }
+        if (isHv === 'yes' && r._hvScore < HV_THRESHOLD) return false;
+        if (isHv === 'no' && r._hvScore >= HV_THRESHOLD) return false;
+        if (keyword) {
+          const haystack = (r.content + ' ' + r.content_zh + ' ' + (r.contact || '')).toLowerCase();
+          if (!haystack.includes(keyword)) return false;
+        }
+        return true;
+      });
+
+      // 排序：质量分(effectiveQuality)降序，同分按 hvScore 降序
+      list.sort((a, b) => {
+        const qa = effectiveQuality(a), qb = effectiveQuality(b);
+        if (qa !== qb) return qb - qa;
+        return (b._hvScore || 0) - (a._hvScore || 0);
+      });
+
+      hvExportList = list; // 全量用于导出
+      const total = list.length;
+      const totalPages = Math.ceil(total / hvPageSize);
+      if (hvPage > totalPages) hvPage = 1;
+      const start = (hvPage - 1) * hvPageSize;
+      const pageData = list.slice(start, start + hvPageSize);
+
+      // 更新卡片标题和计数
+      const title = document.getElementById('hv-card-title');
+      title.textContent = isHv === 'yes' ? '💎 高潜用户反馈' : '📋 反馈详情';
+      document.getElementById('hv-count').textContent = `共 ${total} 条${isHv === 'yes' ? '高潜' : ''}反馈`;
+
+      // 评分缓存（供导出时使用）
+      hvScoreMap = {};
+      list.forEach(r => { hvScoreMap[String(r.id)] = r._hvScore || 0; });
+      window._hvNotes = window._hvNotes || {};
+
+      if (pageData.length === 0) {
+        document.getElementById('hv-list').innerHTML = `
+          <div style="text-align:center;padding:40px 16px;color:var(--text-lighter);">
+            <div style="font-size:2.5rem;margin-bottom:12px;">🔍</div>
+            <div style="font-size:0.9rem;">${(cleanedData || []).length === 0 ? '暂无反馈数据，请先导入数据文件' : '暂无符合条件的反馈'}</div>
+          </div>`;
+        document.getElementById('hv-pagination').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('hv-list').innerHTML = pageData.map((r, i) => {
+        const globalIdx = start + i + 1;
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+        const u = contactKey || r.user || null;
+        const multiCount = u ? (userFeedbackCount[u] || 1) : 1;
+        const channelTag = (!contactKey && r.contact) ? String(r.contact).trim() : null;
+        const noteId = String(r.id);
+        const savedNote = window._hvNotes[noteId] || '';
+        const hasNote = savedNote.trim().length > 0;
+        const isHighValue = (r._hvScore || 0) >= HV_THRESHOLD;
+        const qLevel = effectiveQuality(r);
+        const qBorder = qLevel >= 4 ? 'border-left:3px solid #059669;' : qLevel >= 3 ? 'border-left:3px solid #d97706;' : qLevel >= 2 ? 'border-left:3px solid #94a3b8;' : '';
+        return `
+          <div class="feedback-item" style="${qBorder}">
+            <div class="feedback-header">
+              <div class="feedback-left" style="flex-wrap:wrap;gap:4px;">
+                <span style="font-size:0.72rem;color:var(--text-lighter);min-width:28px;">#${globalIdx}</span>
+                <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
+                <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment==='positive'||r.sentiment==='neutral'?'👍正':r.sentiment==='negative'?'👎负':r.sentiment==='demand'?'💡需求':'❌无效'}</span>
+                ${r.ai_score != null ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">⭐${r.ai_score}分</span>` : ''}
+                ${isHighValue ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;padding:1px 5px;border-radius:3px;">💎高潜</span>` : ''}
+                ${r.ai_hv ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#818cf8,#6366f1);color:#fff;padding:1px 5px;border-radius:3px;">🤖AI高潜</span>` : ''}
+                <span style="font-size:0.78rem;color:var(--text-light);font-weight:500;">📍${r.region || '—'}</span>
+                ${r.device ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">📱${r.device}</span>` : ''}
+                ${channelTag ? `<span style="font-size:0.68rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;">🏪${channelTag}</span>` : (multiCount > 1 ? `<span style="font-size:0.68rem;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:3px;">👤${multiCount}次反馈</span>` : '')}
+                ${hasNote ? `<span style="font-size:0.68rem;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;">📝有备注</span>` : ''}
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                ${contactKey ? `<span style="font-size:0.72rem;color:#166534;font-weight:500;" title="${contactKey}">📧${contactKey}</span>` : ''}
+                <span style="font-size:0.72rem;color:var(--text-lighter);">${r.char_count || (r.content||'').length}字</span>
+                <button onclick="hvToggleNote('${noteId}')" title="添加/编辑备注" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.7rem;color:${hasNote?'#d97706':'var(--text-lighter)'};cursor:pointer;">📝备注</button>
+                <button onclick="hvDelete(${r.id})" title="移除" style="background:none;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:0.7rem;color:var(--text-lighter);cursor:pointer;">✕</button>
+              </div>
+            </div>
+            <div id="hv-note-area-${noteId}" style="display:none;margin:8px 0;">
+              <textarea id="hv-note-input-${noteId}" placeholder="添加人工评估备注..." style="width:100%;min-height:60px;padding:8px;border:1px solid var(--primary);border-radius:6px;font-size:0.8rem;resize:vertical;outline:none;background:var(--bg);color:var(--text);">${savedNote}</textarea>
+              <div style="display:flex;gap:6px;margin-top:6px;">
+                <button onclick="hvSaveNote('${noteId}')" style="padding:3px 10px;background:var(--primary);color:#fff;border:none;border-radius:4px;font-size:0.72rem;cursor:pointer;">💾 保存</button>
+                <button onclick="hvClearNote('${noteId}')" style="padding:3px 10px;background:none;border:1px solid var(--border);color:var(--text-light);border-radius:4px;font-size:0.72rem;cursor:pointer;">🗑 清空</button>
+                <button onclick="hvToggleNote('${noteId}')" style="padding:3px 10px;background:none;border:1px solid var(--border);color:var(--text-light);border-radius:4px;font-size:0.72rem;cursor:pointer;">✕ 收起</button>
+              </div>
+            </div>
+            ${hasNote ? `<div style="margin:6px 0;padding:6px 10px;background:#fef9c3;border-left:3px solid #d97706;border-radius:4px;font-size:0.78rem;color:#78350f;line-height:1.5;"><b>📝 备注：</b>${savedNote}</div>` : ''}
+            <div class="feedback-content">${r.content}</div>
+            ${r.content_zh && r.content_zh !== r.content ? `<div class="feedback-translation">📖 ${r.content_zh}</div>` : ''}
+            <div class="feedback-footer">
+              <span class="feedback-tag">🏷️ ${r.product || '—'}</span>
+              ${r.device ? `<span class="feedback-tag">📱 ${r.device}</span>` : ''}
+              ${r.version ? `<span class="feedback-tag">v${r.version}</span>` : ''}
+              ${r.os_version ? `<span class="feedback-tag">📱${r.os_version}</span>` : ''}
+              ${r.contact ? `<span class="feedback-tag">📧${r.contact}</span>` : ''}
+              ${r.channel ? `<span class="feedback-tag">🏪${r.channel}</span>` : ''}
+              <span style="font-size:0.72rem;color:var(--text-lighter);">📅${r.date || '—'}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      renderPagination('hv-pagination', hvPage, totalPages);
+    }
+
+    // ── 通用翻页渲染 ──
+    function renderPagination(pgId, page, totalPages) {
+      const pg = document.getElementById(pgId);
+      if (!pg) return;
+      if (totalPages <= 1) { pg.innerHTML = ''; return; }
+      let html = `<button class="page-btn" ${page<=1?'disabled':''} onclick="hvGoPage(${page-1})">‹</button>`;
+      const start_pg = Math.max(1, page - 2);
+      const end_pg = Math.min(totalPages, page + 2);
+      if (start_pg > 1) html += `<button class="page-btn" onclick="hvGoPage(1)">1</button>${start_pg>2?'<span style="padding:0 4px">…</span>':''}`;
+      for (let i = start_pg; i <= end_pg; i++) html += `<button class="page-btn ${page===i?'active':''}" onclick="hvGoPage(${i})">${i}</button>`;
+      if (end_pg < totalPages) html += `${end_pg<totalPages-1?'<span style="padding:0 4px">…</span>':''}<button class="page-btn" onclick="hvGoPage(${totalPages})">${totalPages}</button>`;
+      html += `<button class="page-btn" ${page>=totalPages?'disabled':''} onclick="hvGoPage(${page+1})">›</button>`;
+      pg.innerHTML = html;
+    }
+
+    function hvGoPage(p) { hvPage = p; renderHighValue(); window.scrollTo(0, 0); }
+
+    // 高潜用户备注功能
+    window._hvNotes = {};
+    window.hvToggleNote = function(id) {
+      const el = document.getElementById('hv-note-area-' + id);
+      if (!el) return;
+      const isVisible = el.style.display !== 'none';
+      if (isVisible) {
+        el.style.display = 'none';
+      } else {
+        // 关闭所有其他备注区
+        document.querySelectorAll('[id^="hv-note-area-"]').forEach(e => e.style.display = 'none');
+        el.style.display = 'block';
+        setTimeout(() => {
+          const ta = document.getElementById('hv-note-input-' + id);
+          if (ta) { ta.focus(); }
+        }, 50);
+      }
+    };
+    window.hvSaveNote = function(id) {
+      const ta = document.getElementById('hv-note-input-' + id);
+      if (!ta) return;
+      window._hvNotes[id] = ta.value;
+      // 关闭当前备注区
+      const el = document.getElementById('hv-note-area-' + id);
+      if (el) el.style.display = 'none';
+      renderHighValue();
+      showToast('备注已保存', 'success');
+    };
+    window.hvClearNote = function(id) {
+      window._hvNotes[id] = '';
+      const ta = document.getElementById('hv-note-input-' + id);
+      if (ta) ta.value = '';
+    };
+    
+    function renderFeedback() {
+      const filtered = getFiltered();
+      const start = (currentPage - 1) * pageSize;
+      const pageData = filtered.slice(start, start + pageSize);
+      const totalPages = Math.ceil(filtered.length / pageSize);
+      
+      document.getElementById('fb-count').textContent = `共 ${filtered.length} 条反馈`;
+      document.getElementById('feedback-list').innerHTML = pageData.map(r => `
+        <div class="feedback-item">
+          <div class="feedback-header">
+            <div class="feedback-left">
+              <span class="feedback-user">${r.region || '匿名用户'}</span>
+              <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
+              <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment === 'positive' || r.sentiment === 'neutral' ? '👍正反馈' : r.sentiment === 'negative' ? '👎负反馈' : r.sentiment === 'demand' ? '💡需求' : r.sentiment === 'invalid' ? '❌无效' : '👍正反馈'}</span>
+              ${r.ai_score != null ? `<span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;padding:1px 6px;border-radius:4px;font-size:0.72rem;font-weight:600;">⭐${r.ai_score}分</span>` : ''}
+              ${r.ai_hv ? `<span style="background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;padding:1px 6px;border-radius:4px;font-size:0.72rem;font-weight:600;">💎高价值</span>` : ''}
+            </div>
+            <span style="font-size:0.75rem;color:var(--text-light);">${r.char_count}字</span>
+          </div>
+          <div class="feedback-content">${r.content}</div>
+          ${r.content_zh ? `<div class="feedback-translation">📖 ${r.content_zh}</div>` : ''}
+          <div class="feedback-footer">
+            <span class="feedback-tag">📍 ${r.region}</span>
+            <span class="feedback-tag">🏷️ ${r.product}</span>
+            <span class="feedback-tag">📅 ${r.date}</span>
+          </div>
+        </div>
+      `).join('') || '<div class="empty-state"><div class="empty-icon">💬</div><div>暂无反馈数据，请先导入数据</div></div>';
+      
+      // Pagination
+      const pg = document.getElementById('pagination');
+      let html = `<button class="page-btn" ${currentPage<=1?'disabled':''} onclick="goPage(${currentPage-1})">‹</button>`;
+      for (let i = 1; i <= Math.min(totalPages, 5); i++) html += `<button class="page-btn ${currentPage===i?'active':''}" onclick="goPage(${i})">${i}</button>`;
+      html += `<button class="page-btn" ${currentPage>=totalPages?'disabled':''} onclick="goPage(${currentPage+1})">›</button>`;
+      pg.innerHTML = html;
+    }
+    
+    function goPage(p) { currentPage = p; renderFeedback(); }
+    
+    // ============================================================
+    // DATA IMPORT HANDLERS
+    // ============================================================
+    // 文件导入入口：先选产品，再处理
+    async function handleFileImport(file) {
+      const active = getActiveProduct();
+      if (active && active !== '') {
+        // 已选产品 → 直接处理
+        processImportFile(file);
+      } else {
+        openImportProductModal(file);
+      }
+    }
+
+    // 实际文件处理逻辑
+    async function processImportFile(file) {
+      try {
+        if (file.name.endsWith('.xlsx')) {
+          // SheetJS 解析 xlsx
+          const buffer = await file.arrayBuffer();
+          const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          
+          // 字段映射（支持多套列名：标准英文列 + Visha SOP 中文列名）
+          rawData = json.map((row, i) => {
+            const keys = Object.keys(row);
+            // 通用查找函数：候选词列表，任意一个匹配即返回对应列值
+            const get = (candidates) => {
+              for (const kw of candidates) {
+                for (const key of keys) {
+                  if (key.toLowerCase().includes(kw.toLowerCase())) return String(row[key] || '');
+                }
+              }
+              return '';
+            };
+            // 内容列：去除首尾空白和 \t 前缀（Google/苹果渠道文件格式）
+            const raw_content = (() => {
+              const v = get(['评价内容', '原声', '原始内容', '问题描述', 'content', '描述', 'description', 'feedback', 'comment', '原文本']);
+              return v.replace(/^\t+|\t+$/g, '').trim();
+            })();
+            const zh_content   = (() => {
+              const v = get(['评价内容译文（中文）', '中文翻译', '问题描述译文（中文）', '译文（中文）', '译文', '中文', 'content_zh', 'translat', 'translation']);
+              return v.replace(/^\t+|\t+$/g, '').trim();
+            })();
+            const en_content   = (() => {
+              const v = get(['评价内容译文（英文）', '英文翻译', '问题描述译文（英文）', '译文（英文）', '英文']);
+              return v.replace(/^\t+|\t+$/g, '').trim();
+            })();
+            // content_zh 优先中文翻译；无中文但有英文时降级用英文
+            const final_zh = zh_content || en_content;
+            const sent_raw = get(['情感分类', '情感判断', '情感', '情感判断（AI识别的）', 'sentiment']);
+            // 情感标准化映射（含Google渠道特征值：夸奖/无效反馈）
+            const sentMap = {
+              '夸奖': 'positive', '正向反馈': 'positive', '正面': 'positive', '正反馈': 'positive',
+              '无效反馈': 'invalid', '负向反馈': 'negative', '负面': 'negative', '负反馈': 'negative',
+              '需求建议': 'demand', '需求': 'demand', '建议': 'demand',
+              '中性': 'neutral', '中评': 'neutral', 'neutral': 'neutral'
+            };
+            const sentiment = sentMap[sent_raw] || sent_raw || 'neutral';
+
+            return {
+              id: row[keys[0]] || i + 1,
+              user:   get(['国家', '地区', 'region', 'country']) || '匿名用户',
+              region: get(['国家', '地区', 'region', 'country']),
+              product: get(['映射功能模块', '功能模块', 'module', '分类', 'category']),
+              content: raw_content,
+              content_zh: final_zh,
+              rating: 3,
+              date:   (() => { const dv = row[keys.find(k => k.includes('时间') || k.includes('time') || k.includes('date') || k.includes('提交'))]; if (!dv) return ''; if (dv instanceof Date) return dv.toISOString().split('T')[0]; return String(dv).split(' ')[0]; })(),
+              sentiment,
+              quality: getQuality(3, raw_content),
+              char_count: raw_content.length,
+              device:  get(['机型', 'device', 'phone', 'model']),
+              version: get(['应用版本', 'version', '版本']),
+              channel: get(['问题类型', '反馈类型（来自数据源）', 'type', '类型']),
+              contact: get(['联系方式', 'contact', 'email', 'mail']),
+              // 新格式补充字段
+              user_id:    get(['用户ID', 'user_id']),
+              os_version: get(['OS版本', 'os_version', 'OS']),
+              ops_notes:  get(['运营备注', 'ops_notes', '备注']),
+            };
+          });
+          // 第一步：脚本规则初步清洗（空值/URL/极短等基础过滤）
+          const preClean = processImportedData(rawData);
+          // 第二步：AI 只分析清洗后的数据
+          const { enriched: aiEnriched, invalidCount } = await runAiEnrich(preClean.records);
+          window._lastAiInvalidCount = invalidCount || 0;
+          // 第三步：合并结果，loadResult 需要的字段格式
+          const result = {
+            records: aiEnriched,
+            total: rawData.length,
+            kept: aiEnriched.length,
+            removed: { ...preClean.removed, aiInvalid: invalidCount }
+          };
+          loadResult(result);
+
+        } else if (file.name.endsWith('.json')) {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          rawData = Array.isArray(data) ? data : [data];
+          const preClean = processImportedData(rawData);
+          const { enriched: aiEnriched, invalidCount } = await runAiEnrich(preClean.records);
+          window._lastAiInvalidCount = invalidCount || 0;
+          const result = {
+            records: aiEnriched,
+            total: rawData.length,
+            kept: aiEnriched.length,
+            removed: { ...preClean.removed, aiInvalid: invalidCount }
+          };
+          loadResult(result);
+
+        } else if (file.name.endsWith('.csv')) {
+          const text = await file.text();
+          const lines = text.trim().split('\n');
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+          const rows = lines.slice(1).map(line => {
+            const vals = line.match(/(".*?"|[^,]+)/g) || [];
+            const row = {};
+            headers.forEach((h, i) => row[h] = (vals[i]||'').trim().replace(/"/g,''));
+            return row;
+          });
+          rawData = rows;
+          const preClean = processImportedData(rawData);
+          const { enriched: aiEnriched, invalidCount } = await runAiEnrich(preClean.records);
+          window._lastAiInvalidCount = invalidCount || 0;
+          const result = {
+            records: aiEnriched,
+            total: rawData.length,
+            kept: aiEnriched.length,
+            removed: { ...preClean.removed, aiInvalid: invalidCount }
+          };
+          loadResult(result);
+        }
+      } catch(err) {
+        showToast('文件解析失败: ' + err.message, 'error');
+      }
+    }
+    
+    function loadResult(result) {
+      // result.records 可能不存在（JSON直接加载时已提前设置 cleanedData）
+      const _records = Array.isArray(result?.records) ? result.records : [];
+      window.cleanedData = _records;
+      rawData = Array.isArray(rawData) ? rawData : [];
+      
+      updateHeaderStats();
+      renderFilters();
+      renderCleaningReport(result);
+      
+      // Show preview
+      document.getElementById('data-preview-box').classList.remove('hidden');
+      document.getElementById('preview-stats').textContent = `原始 ${result.total} 条 → 有效 ${result.kept} 条（${(result.kept/result.total*100).toFixed(1)}%）`;
+      document.getElementById('preview-table-wrap').innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+          <thead><tr style="border-bottom:2px solid var(--border);">
+            <th style="padding:6px;text-align:left;color:var(--text-light);">地区</th>
+            <th style="padding:6px;text-align:left;color:var(--text-light);">内容</th>
+            <th style="padding:6px;text-align:center;color:var(--text-light);">质量</th>
+            <th style="padding:6px;text-align:center;color:var(--text-light);">情感</th>
+            <th style="padding:6px;text-align:left;color:var(--text-light);">AI模块</th>
+          </tr></thead>
+          <tbody>${cleanedData.slice(0,8).map(r => `
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:6px;">${r.region||'-'}</td>
+              <td style="padding:6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.content.substring(0,50)}</td>
+              <td style="padding:6px;text-align:center;"><span class="feedback-badge badge-quality-${r.quality}">${r.quality}</span></td>
+              <td style="padding:6px;text-align:center;"><span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment==='positive'?'正面':r.sentiment==='negative'?'负面':r.sentiment==='demand'?'需求':'中性'}</span></td>
+              <td style="padding:6px;color:var(--text-light);">${r.ai_module||r.product||'-'}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+      
+      showToast(`成功导入 ${result.kept} 条有效数据`, 'success');
+      renderProductSelector(); // 更新导航栏产品选择器（启用状态）
+    }
+    
+    function renderCleaningReport(result) {
+      const box = document.getElementById('cleaning-report-box');
+      box.classList.remove('hidden');
+      
+      const keptPct = (result.kept / result.total * 100).toFixed(1);
+      const removedPct = ((result.total - result.kept) / result.total * 100).toFixed(1);
+      
+      document.getElementById('cleaning-bar-kept').style.width = keptPct + '%';
+      document.getElementById('cleaning-bar-kept').textContent = `保留 ${keptPct}%`;
+      document.getElementById('cleaning-bar-removed').style.width = removedPct + '%';
+      document.getElementById('cleaning-bar-removed').textContent = `清洗 ${removedPct}%`;
+      
+      const aiInvalid = window._lastAiInvalidCount || 0;
+      const items = [
+        { label: '🗑️ 空值/无效', value: result.removed.empty },
+        { label: '🔗 纯URL链接', value: result.removed.pureUrl },
+        { label: '📝 ≤3单词/字符<10', value: result.removed.shortWords },
+        { label: '🔀 乱码内容', value: result.removed.garbled },
+        { label: '📞 联系电话', value: result.removed.phone },
+        { label: '📉 语义质量低', value: result.removed.wordQuality },
+        { label: '⌨️ 键盘乱敲', value: result.removed.keyboardMash },
+        { label: '🔢 测试账号/随机串', value: result.removed.testAccount },
+        { label: '🇫🇷 法语测试片段', value: result.removed.frenchTest },
+        { label: '📋 重复内容', value: result.removed.dup },
+        { label: '🤖 AI无效反馈', value: aiInvalid },
+      ].filter(i => i.value > 0);
+      
+      document.getElementById('cleaning-details').innerHTML = items.map(i => `
+        <div class="cleaning-item">
+          <span class="cleaning-item-label">${i.label}</span>
+          <span class="cleaning-item-value" style="color:var(--danger)">-${i.value}</span>
+        </div>`).join('');
+    }
+    
+    // ============================================================
+    // EVENT LISTENERS
+    // ============================================================
+    function setupEvents() {
+      // Tab nav
+      document.querySelectorAll('.nav-tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+      
+      // File import
+      const zone = document.getElementById('import-zone');
+      const input = document.getElementById('file-input');
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]); });
+      input.addEventListener('change', e => { if (e.target.files[0]) handleFileImport(e.target.files[0]); });
+      
+      // Load pre-cleaned JSON (from the cleaned xlsx we generated)
+      document.getElementById('btn-load-json').addEventListener('click', () => {
+        fetch('feedback_data.json')
+          .then(r => r.json())
+          .then(data => {
+            const active = getActiveProduct();
+            if (active && active !== '') {
+              // 已选产品 → 直接加载
+              window._pendingJsonData = data;
+              const productName = active;
+              const d = data;
+              rawData = d;
+              cleanedData = d;
+              updateHeaderStats();
+              renderFilters();
+              const result = {
+                total: d.length,
+                kept: d.length,
+                records: d,
+                removed: { empty:0, url:0, search:0, short:0, dup:0, lang_short:0 }
+              };
+              document.getElementById('cleaning-report-box').classList.add('hidden');
+              loadResult(result);
+              showToast(`已加载 ${d.length} 条清洗后数据（${productName}）`, 'success');
+            } else {
+              // 未选产品 → 弹出选择
+              window._pendingJsonData = data;
+              openImportJsonModal(data);
+            }
+          })
+          .catch(() => {
+            // Fallback: prompt user to upload the cleaned json/xlsx
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,.xlsx';
+            input.onchange = e => { if (e.target.files[0]) handleFileImport(e.target.files[0]); };
+            input.click();
+          });
+      });
+
+      // Demo data
+      document.getElementById('btn-load-sample').addEventListener('click', () => {
+        openImportProductModalForData(generateSampleData(), 'demo');
+      });
+      
+      // Clear
+      document.getElementById('btn-clear').addEventListener('click', () => {
+        rawData = []; cleanedData = [];
+        document.getElementById('data-preview-box').classList.add('hidden');
+        document.getElementById('cleaning-report-box').classList.add('hidden');
+        document.getElementById('stat-total').textContent = '—';
+        document.getElementById('stat-kept').textContent = '—';
+        document.getElementById('stat-date-range').textContent = '—';
+        renderProductSelector();
+        showToast('数据已清空', 'info');
+      });
+      
+      // Export JSON
+      document.getElementById('btn-export-json').addEventListener('click', () => {
+        if (!cleanedData || !cleanedData.length) { showToast('无数据可导出', 'error'); return; }
+        const blob = new Blob([JSON.stringify(cleanedData, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = 'feedback_export.json'; a.click();
+        showToast('JSON已导出', 'success');
+      });
+
+      // 全量导出 Excel（含 AI 翻译/情感/质量等全部字段）
+      document.getElementById('btn-export-full').addEventListener('click', () => {
+        if (!cleanedData || !cleanedData.length) { showToast('无数据可导出', 'error'); return; }
+        const exportFields = [
+          { header: '排名',        key: '_rank',       width: 8  },
+          { header: '国家',        key: 'country',      width: 12 },
+          { header: '日期',        key: 'date',         width: 12 },
+          { header: '质量',        key: 'quality',      width: 8  },
+          { header: '情感',        key: 'sentiment',    width: 10 },
+          { header: '模块',        key: 'module',       width: 14 },
+          { header: '地区',        key: 'region',       width: 12 },
+          { header: '机型',        key: 'device',       width: 16 },
+          { header: '版本',        key: 'version',      width: 14 },
+          { header: 'OS版本',     key: 'os_version',   width: 12 },
+          { header: '联系方式',    key: 'contact',      width: 18 },
+          { header: 'AI质量分',    key: 'ai_score',     width: 10 },
+          { header: 'AI高潜',      key: 'ai_hv',        width: 8  },
+          { header: 'AI模块分类',  key: 'ai_module',    width: 16 },
+          { header: '用户ID',     key: 'user',          width: 16 },
+          { header: '反馈内容(原文)',  key: 'content',  width: 40 },
+          { header: '反馈内容(中文)',  key: 'content_zh',width: 40 },
+          { header: '运营备注',    key: 'ops_notes',    width: 20 },
+          { header: '备注',        key: '_note',        width: 20 },
+        ];
+        const rows = cleanedData.map((r, i) => {
+          const row = { [exportFields[0].key]: i + 1 };
+          exportFields.slice(1).forEach(f => {
+            row[f.key] = (r[f.key] != null ? String(r[f.key]) : '');
+          });
+          row._note = (window._hvNotes && window._hvNotes[r.id]) || '';
+          return row;
+        });
+        const ws = XLSX.utils.json_to_sheet(rows, { header: exportFields.map(f => f.header) });
+        // 设置每列宽度
+        exportFields.forEach((f, i) => { ws['!cols'] = ws['!cols'] || []; ws['!cols'][i] = { wch: f.width }; });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '反馈全量数据');
+        XLSX.writeFile(wb, `feedback_full_${new Date().toISOString().slice(0,10)}.xlsx`);
+        showToast(`已导出 ${cleanedData.length} 条全量数据（Excel）`, 'success');
+      });
+      
+      // Filters
+      ['f-region','f-quality','f-sentiment','f-module'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => { currentPage = 1; renderOverview(); });
+      });
+      document.getElementById('f-search')?.addEventListener('input', () => { currentPage = 1; renderOverview(); });
+      
+      // HV filters
+      ['hv-ishv','hv-sentiment','hv-quality','hv-module'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => { hvPage = 1; renderHighValue(); });
+      });
+      document.getElementById('hv-search')?.addEventListener('input', () => { hvPage = 1; renderHighValue(); });
+    }
+    
+    // ============================================================
+    // INIT
+    // ============================================================
+    // ── Gemini AI 翻译 + 情感打标 ──────────────────────────────
+    // ============================================================
+
+    function toggleKeyVisibility() {
+      const inp = document.getElementById('gemini-api-key');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    // ── Gemini API 调用 ─────────────────────────────────────────
+    // 批量情感判断 + 翻译 + 模块分类（支持最多300条/批）
+    // 模型配置
+    const MODEL_LITE  = 'gemini-2.5-flash-lite';   // 250条/批，output 16384
+    const MODEL_FLASH = 'gemini-2.5-flash';          // 150条/批，output 8192（RPD 独立）
+    const BATCH_LITE  = 250;
+    const BATCH_FLASH = 150;
+    const MAXOUT_LITE  = 16384;
+    const MAXOUT_FLASH = 8192;
+    // 共享 prompt（两个模型通用）
+    const promptTpl = `你是一个用户反馈分析助手。请对以下每条用户反馈原文，依次完成以下五项任务：
+
+1. 情感判断（中文标签）：
+   - 正面好评：用户表达满意、赞扬
+   - 负面投诉：用户表达不满、报告故障或问题
+   - 需求建议：用户提出功能请求或改进建议
+   - 无效反馈：无法识别、纯乱码、与产品无关的垃圾内容
+
+2. 中文翻译：将原文翻译为中文（"无效反馈"条目返回空字符串即可）
+
+3. 质量分（1-5分，"无效反馈"固定返回 1）：
+   - 5分：描述极其详尽（包含操作步骤、复现路径、具体场景），建议具有高度建设性，可直接转化为需求。
+   - 4分：描述逻辑清晰，明确指出了特定功能的痛点或具体的 Bug 表现，有一定参考价值。
+   - 3分：有效反馈但描述简单（如"播放器卡顿"），信息量一般，需要进一步追问。
+   - 2分：纯情绪表达（如"太差了"），或描述过于模糊，参考价值低。
+   - 1分：无效或乱码内容。
+
+4. 是否高潜用户（true/false，"无效反馈"固定返回 false）：
+   判断标准：用户是否表现出对产品的深度使用（如提到具体功能路径、版本号、机型），
+   或者提出的建议具有专业性/极具商业价值。满足其中一项即标记为 true。
+
+5. 功能模块分类（参考以下模块列表，根据内容选择最匹配的一个）：
+   Visha产品：本地视频、下载功能、本地音频、隐私文件夹、在线视频、广告、整体/稳定性/更新、其他
+   Notes产品：文本编辑、AI能力、云服务、加密笔记、广告、视觉&交互、提醒相关、整体/稳定性/更新、其他
+   其他产品：广告、整体/稳定性/更新、其他
+
+   若无法判断则返回"其他"。
+
+严格按以下 JSON Lines 格式返回（每行一条 JSON，不要有任何额外输出，不要有代码块标记）：
+{"index":1,"sentiment":"...","zh":"...","score":3,"hv":false,"module":"..."}
+{"index":2,"sentiment":"...","zh":"...","score":4,"hv":true,"module":"..."}
+...
+
+反馈列表：
+\${items}`;
+
+    // 带重试的请求（429返回null由调用方切换模型）
+    async function callGeminiBatch(apiKey, texts, modelKey, maxOut) {
+      const url = `https://generativelanguage.googleapis.com/v1/models/${modelKey}:generateContent?key=${apiKey}`;
+      const prompt = promptTpl.replace('${items}', texts.map((t, i) => `【${i + 1}】${t}`).join('\n'));
+      let resp;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: maxOut }
+          })
+        });
+        if (resp.status === 429) {
+          if (attempt < 3) { await new Promise(resolve => setTimeout(resolve, 30000)); continue; }
+          else { return null; } // 返回 null 表示限流，触发模型切换
+        } else { break; }
+      }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `HTTP \${resp.status}`);
+      }
+      const data = await resp.json();
+      const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const validSentiment = new Set(['正面好评','负面投诉','需求建议','无效反馈']);
+      const sentimentMap = { '正面好评': 'positive', '负面投诉': 'negative', '需求建议': 'demand', '无效反馈': 'invalid' };
+      const results = [];
+      raw.replace(/```[^\n]*\n?/g, '').split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('{')) return;
+        try {
+          const parsed = JSON.parse(trimmed);
+          const idx = parsed.index - 1;
+          const sentiment = sentimentMap[parsed.sentiment] || (validSentiment.has(parsed.sentiment) ? parsed.sentiment : 'negative');
+          const score = Math.min(5, Math.max(1, parseInt(parsed.score) || 3));
+          const hv = parsed.hv === true || parsed.hv === 'true';
+          results.push({ idx, sentiment, content_zh: (parsed.zh || '').trim(), score, hv, module: parsed.module || '其他' });
+        } catch(e) { /* ignore parse error */ }
+      });
+      return results;
+    }
+
+    // ── 批量 AI 处理入口 ─────────────────────────────────────────
+    // 流程：Flash Lite（250条/批）→ 不够/限流时自动切换 Flash（150条/批）
+    async function runAiEnrich(rows) {
+      const apiKey = document.getElementById('gemini-api-key').value.trim();
+      if (!apiKey) return { enriched: rows, invalidCount: 0 };
+
+      const toProcess = rows.filter(r => r.content && r.content.trim());
+      if (toProcess.length === 0) return { enriched: rows, invalidCount: 0 };
+
+      const wrap = document.getElementById('ai-progress-wrap');
+      const bar  = document.getElementById('ai-progress-bar');
+      const pct  = document.getElementById('ai-progress-pct');
+      const lbl  = document.getElementById('ai-progress-label');
+      const detail = document.getElementById('ai-progress-detail');
+      wrap.style.display = 'block';
+      bar.style.width = '0%';
+      pct.textContent = '0%';
+      lbl.textContent = `AI 分析中（0/${toProcess.length} 条）...`;
+      detail.textContent = '翻译 + 情感判断 + 模块分类';
+
+      // 模型优先级：Flash Lite → Flash（429 或 RPD 用尽时切换）
+      const MODELS = [
+        { name: 'Flash Lite', modelKey: MODEL_LITE, batch: BATCH_LITE, maxOut: MAXOUT_LITE, interval: 7000 },
+        { name: 'Flash',      modelKey: MODEL_FLASH, batch: BATCH_FLASH, maxOut: MAXOUT_FLASH, interval: 6000 },
+      ];
+      let modelIdx = 0;
+      let done = 0;
+      let errCount = 0;
+      let invalidCount = 0;
+
+      for (let b = 0; b < toProcess.length; ) {
+        const m = MODELS[modelIdx];
+        const batch = toProcess.slice(b, b + m.batch);
+        const texts = batch.map(r => r.content.trim());
+        try {
+          const results = await callGeminiBatch(apiKey, texts, m.modelKey, m.maxOut);
+          if (results === null) {
+            // 限流：尝试切换模型
+            if (modelIdx === 0) {
+              modelIdx = 1;
+              detail.textContent = 'Flash Lite 限流，切换为 Flash...';
+              continue;
+            } else {
+              throw new Error('Flash Lite 和 Flash 均限流，请稍后再试');
+            }
+          }
+          results.forEach(res => {
+            if (res.idx < 0 || res.idx >= batch.length) return;
+            const r = batch[res.idx];
+            r.sentiment = res.sentiment;
+            if (res.sentiment === 'invalid') {
+              r._ai_invalid = true;
+              invalidCount++;
+            } else {
+              r._ai_invalid = false;
+              if (res.content_zh && res.content_zh !== r.content) r.content_zh = res.content_zh;
+              r.ai_score = res.score;
+              r.ai_hv = res.hv;
+              r.ai_module = res.module || '其他';
+            }
+            r._ai_enriched = true;
+          });
+          const returnedIdx = new Set(results.map(r => r.idx));
+          for (let i = 0; i < batch.length; i++) {
+            if (!returnedIdx.has(i)) batch[i].sentiment = 'negative';
+          }
+        } catch(e) {
+          errCount += batch.length;
+          detail.textContent = `最近错误：${e.message}`;
+        }
+
+        b += batch.length;
+        done = b;
+        const p = Math.round(done / toProcess.length * 100);
+        bar.style.width = p + '%';
+        pct.textContent = p + '%';
+        lbl.textContent = `AI 分析中（${done}/${toProcess.length} 条）...`;
+        if (b < toProcess.length) await new Promise(r => setTimeout(r, m.interval));
+      }
+
+      wrap.style.display = 'none';
+      const enriched = toProcess.filter(r => !r._ai_invalid);
+      showToast(
+        `AI 分析完成：翻译 ${enriched.length} 条有效${invalidCount > 0 ? `，${invalidCount} 条无效已过滤` : ''}${errCount > 0 ? `，${errCount} 条失败` : ''}`,
+        errCount > 0 || invalidCount > 0 ? 'warning' : 'success'
+      );
+      return { enriched, invalidCount, totalProcessed: done };
+    }
+
+    // ============================================================
+    function init() {
+      initCharts();
+      setupEvents();
+      renderProductSelector();
+    }
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+
+  <!-- 历史报告弹窗 -->
+  <div id="report-history-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:var(--card-bg);border-radius:12px;padding:24px;width:min(680px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div style="font-size:1.05rem;font-weight:700;">📚 已保存的报告</div>
+        <button onclick="closeReportHistory()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-light);">✕</button>
+      </div>
+      <div id="rpt-history-list" style="font-size:0.82rem;"></div>
+    </div>
+  </div>
+
+  <script>
+  // ── 报告系统 ──
+  window._reportStorage = JSON.parse(localStorage.getItem('cms_feedback_reports') || '[]');
+
+  window.generateFullReport = function generateFullReport() {
+    console.log('[generateFullReport] cleanedData:', cleanedData, 'length:', cleanedData ? cleanedData.length : 'N/A');
+    if (!cleanedData || cleanedData.length === 0) {
+      showToast('请先导入数据后再生成报告', 'error'); return;
+    }
+    
+    // 获取所有产品
+    const products = [...new Set(cleanedData.map(r => r.product).filter(Boolean))];
+    
+    // 生成报告HTML内容
+    const now = new Date();
+    const weekNum = getWeekNumber(now);
+    const reportName = `CMS渠道 ${now.getFullYear()}-W${weekNum} 反馈报告`;
+    
+    // 计算统计数据
+    const totalCount = cleanedData.length;
+    const negCount = cleanedData.filter(r => r.sentiment === 'negative').length;
+    const posCount = cleanedData.filter(r => r.sentiment === 'positive').length;
+    const demCount = cleanedData.filter(r => r.sentiment === 'demand').length;
+    const neuCount = cleanedData.filter(r => r.sentiment === 'neutral').length;
+    
+    // 地区分布
+    const regionStats = {};
+    cleanedData.forEach(r => {
+      const region = r.region || '未知';
+      regionStats[region] = (regionStats[region] || 0) + 1;
+    });
+    const topRegions = Object.entries(regionStats).sort((a,b) => b[1]-a[1]).slice(0, 10);
+    
+    // 典型问题分析 — 使用当前产品的固定模块列表
+    const _statsCfg = getStatsConfig();
+    const moduleIssues = {};
+    _statsCfg.modules.forEach(m => { moduleIssues[m] = { count: 0, negative: 0, demand: 0, themes: [], samples: [] }; });
+
+    cleanedData.forEach(r => {
+      if (r.sentiment !== 'negative' && r.sentiment !== 'demand') return;
+      const mod = inferModuleFromContent(r) || '其他';
+      if (!moduleIssues[mod]) moduleIssues[mod] = { count: 0, negative: 0, demand: 0, themes: [], allFeedback: [] };
+      moduleIssues[mod].count++;
+      if (r.sentiment === 'negative') moduleIssues[mod].negative++;
+      if (r.sentiment === 'demand') moduleIssues[mod].demand++;
+      moduleIssues[mod].allFeedback.push(r);
+
+      // 关键词提取（从中文翻译内容中匹配）
+      const zh = (r.content_zh || '').toLowerCase();
+      (_statsCfg.keywords[mod] || []).forEach(kw => {
+        const kwLower = kw.toLowerCase();
+        if (kwLower.length < 4 && /[a-z]/.test(kwLower)) return;
+        if (zh.includes(kwLower)) moduleIssues[mod].themes.push(kw);
+      });
+      moduleIssues[mod].themes = [...new Set(moduleIssues[mod].themes)]; // 去重
+
+
+    });
+
+    // 按固定顺序输出，只保留有数据的模块
+    const typicalIssues = _statsCfg.modules
+      .map(mod => ({ module: mod, ...moduleIssues[mod] }))
+      .filter(m => m.count > 0)
+      .sort((a, b) => b.count - a.count);
+    
+    // 高价值反馈TOP30
+    const ACTIONABLE = ['fix','bug','error','crash','freeze','lag','slow','broken','not work','doesn\'t work','cannot','can\'t','unable','fail','failed','problem','issue','stuck','please add','please fix','hope','wish','need','want','suggest','建议','download','play','record','screen','audio','video','sound','music','崩溃','卡顿','下载','播放','修复','问题','功能','增加','无法','不能'];
+    const TEMPLATE_PATTERNS = [/(.)\1{6,}/, /^(.{1,5}\s+){5,}/, /^[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}\s+[a-z]{3,}/i];
+    
+    function getSemScore(r) {
+      let score = 0;
+      const content = (r.content || '').toLowerCase();
+      const zh = (r.content_zh || '').toLowerCase();
+      const combined = content + ' ' + zh;
+      const len = (r.content || '').length;
+      // 质量分：ai_score 优先（×2），否则 fallback A=10/B=5/C=0
+      score += r.ai_score != null ? r.ai_score * 2 : ({ A: 10, B: 5, C: 0 }[String(r.quality || 'C').toUpperCase()] || 0);
+      score += ({ negative: 3, demand: 3, positive: 1, neutral: 0 }[r.sentiment] || 0);
+      if (ACTIONABLE.some(kw => combined.includes(kw))) score += 4;
+      if (len >= 30 && len <= 300) score += 3;
+      else if (len > 300 && len <= 500) score += 1;
+      else if (len < 15) score -= 3;
+      if (TEMPLATE_PATTERNS.some(pat => pat.test(r.content || ''))) score -= 8;
+      if (len > 200 && !/[.!?。！？]/.test(r.content || '')) score -= 4;
+      return score;
+    }
+    
+    const highValueItems = [...cleanedData]
+      .map(r => ({ ...r, score: getSemScore(r), note: window._hvNotes[String(r.id)] || '' }))
+      .filter(r => effectiveQuality(r) >= 3)  // ai_score ≥ 3 或 fallback 质量 A/B
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 30);
+    
+    // 构建完整HTML报告
+    const reportHTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${reportName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%); color: #fff; padding: 28px 32px; border-radius: 12px; margin-bottom: 24px; }
+    .header h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+    .header-meta { font-size: 0.85rem; opacity: 0.8; }
+    .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+    .section { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; overflow: hidden; }
+    .section-title { padding: 14px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 1rem; }
+    .section-body { padding: 20px; }
+    .issue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .issue-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .issue-module { font-weight: 600; font-size: 0.95rem; margin-bottom: 8px; color: #4f46e5; }
+    .issue-themes { font-size: 0.8rem; color: #64748b; margin-bottom: 8px; }
+    .issue-counts { display: flex; gap: 12px; font-size: 0.8rem; }
+    .count-neg { color: #dc2626; }
+    .count-dem { color: #7c3aed; }
+    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; }
+    .region-list { display: flex; flex-direction: column; gap: 8px; }
+    .region-item { display: flex; align-items: center; gap: 10px; }
+    .region-name { width: 80px; font-size: 0.85rem; }
+    .region-bar { flex: 1; height: 20px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .region-fill { height: 100%; background: #4f46e5; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 0.75rem; color: #fff; font-weight: 500; }
+    .region-count { width: 50px; text-align: right; font-size: 0.85rem; font-weight: 600; }
+    .feedback-list { display: flex; flex-direction: column; gap: 12px; }
+    .feedback-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .feedback-header { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    .feedback-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+    .badge-quality-a { background: #d1fae5; color: #065f46; }
+    .badge-quality-b { background: #fef3c7; color: #92400e; }
+    .sentiment-negative { background: #fee2e2; color: #991b1b; }
+    .sentiment-demand { background: #ede9fe; color: #5b21b6; }
+    .sentiment-positive { background: #d1fae5; color: #065f46; }
+    .sentiment-neutral { background: #f1f5f9; color: #475569; }
+    .feedback-content { font-size: 0.88rem; line-height: 1.6; color: #1e293b; }
+    .feedback-translation { font-size: 0.82rem; color: #64748b; background: #f8fafc; padding: 8px 10px; border-radius: 6px; margin-top: 8px; border-left: 3px solid #818cf8; }
+    .feedback-note { font-size: 0.82rem; color: #78350f; background: #fef9c3; padding: 8px 10px; border-radius: 6px; margin-top: 8px; border-left: 3px solid #d97706; }
+    .feedback-meta { font-size: 0.75rem; color: #94a3b8; margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .sample-section { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+    .sample-title { font-size: 0.78rem; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+    .sample-item { font-size: 0.8rem; color: #475569; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; }
+    .footer { text-align: center; padding: 20px; color: #94a3b8; font-size: 0.8rem; }
+    @media print { body { background: #fff; } .section { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${reportName}</h1>
+      <div class="header-meta">生成时间：${now.toLocaleString('zh-CN')} | 产品范围：${products.join('、')}</div>
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value" style="color:#4f46e5">${totalCount}</div><div class="stat-label">总反馈数</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#dc2626">${negCount}</div><div class="stat-label">负面反馈</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#7c3aed">${demCount}</div><div class="stat-label">需求建议</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#059669">${posCount}</div><div class="stat-label">正面反馈</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:#64748b">${neuCount}</div><div class="stat-label">中性反馈</div></div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">🌍 地区分布 TOP10</div>
+      <div class="section-body">
+        <div class="region-list">
+          ${topRegions.map(([region, count]) => {
+            const pct = (count / totalCount * 100).toFixed(1);
+            return `<div class="region-item">
+              <div class="region-name">${region}</div>
+              <div class="region-bar"><div class="region-fill" style="width:${pct}%">${pct}%</div></div>
+              <div class="region-count">${count}条</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">📋 典型问题分析（按功能模块）</div>
+      <div class="section-body">
+        <div class="issue-grid">
+          ${typicalIssues.map(m => {
+            const total = m.negative + m.demand;
+            const negPct = total > 0 ? (m.negative / total * 100).toFixed(0) : 0;
+            return `<div class="issue-card">
+              <div class="issue-module">🏷️ ${m.module}</div>
+              <div class="issue-themes">🔍 ${m.themes.slice(0, 4).join('、') || '典型问题'}</div>
+              <div class="issue-counts">
+                <span class="count-neg">👎 负面 ${m.negative}条</span>
+                <span class="count-dem">💡 需求 ${m.demand}条</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width:${negPct}%;background:#dc2626;"></div>
+              </div>
+              ${(m.allFeedback||[]).length > 0 ? `<div class="sample-section">
+                <div class="sample-title">代表性反馈（质量TOP2）：</div>
+                ${(m.allFeedback||[]).sort((a,b)=>effectiveQuality(b)-effectiveQuality(a)).slice(0,2).map(s => `<div class="sample-item">• ${(s.content || '').substring(0, 100)}${(s.content || '').length > 100 ? '…' : ''}</div>`).join('')}
+              </div>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">⭐ 高价值反馈 TOP${highValueItems.length}（评估优先处理）</div>
+      <div class="section-body">
+        <div class="feedback-list">
+          ${highValueItems.map((item, idx) => {
+            const sentClass = `sentiment-${item.sentiment}`;
+            const sentIcon = { positive:'👍', negative:'👎', demand:'💡', neutral:'😐' }[item.sentiment] || '😐';
+            const sentLabel = { positive:'正面', negative:'负面', demand:'需求', neutral:'中性' }[item.sentiment] || '中性';
+            return `<div class="feedback-item">
+              <div class="feedback-header">
+                <span style="font-weight:700;color:#4f46e5;">#${idx + 1}</span>
+                <span class="feedback-badge ${qualityClass(item)}">${qualityLabel(item)}</span>
+                <span class="feedback-badge ${sentClass}">${sentIcon} ${sentLabel}</span>
+                <span style="font-size:0.75rem;color:#64748b;">📍${item.region || '未知'}</span>
+                <span style="font-size:0.75rem;color:#64748b;">🏷️${item.product || ''}</span>
+                <span style="font-size:0.75rem;color:#94a3b8;">评分：${item.score}</span>
+              </div>
+              <div class="feedback-content">${item.content || ''}</div>
+              ${item.content_zh ? `<div class="feedback-translation">中文翻译：${item.content_zh}</div>` : ''}
+              ${item.note ? `<div class="feedback-note">📝 ${item.note}</div>` : ''}
+              <div class="feedback-meta">
+                ${item.contact ? `<span>📧 ${item.contact}</span>` : ''}
+                ${item.date ? `<span>📅 ${item.date}</span>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>本报告由用户反馈分析平台自动生成</p>
+      <p>数据处理完成，不支持在线修改 | 可使用浏览器打印功能导出PDF</p>
+    </div>
+  </div>
+</body>
+</html>`;
+    
+    // 保存到历史记录
+    const reportRecord = {
+      name: reportName,
+      createdAt: now.toISOString(),
+      products: products,
+      totalCount, negCount, posCount, demCount,
+      html: reportHTML
+    };
+    window._reportStorage.unshift(reportRecord);
+    localStorage.setItem('cms_feedback_reports', JSON.stringify(window._reportStorage));
+    
+    // 在新窗口打开报告
+    const reportWindow = window.open('', '_blank');
+    if (reportWindow) {
+      reportWindow.document.write(reportHTML);
+      reportWindow.document.close();
+      showToast(`报告「${reportName}」已生成并在新窗口打开`, 'success');
+    } else {
+      showToast('请允许弹出窗口以查看报告', 'error');
+    }
+  }
+
+  window.viewReportHistory = function viewReportHistory() {
+    const list = document.getElementById('rpt-history-list');
+    const reports = window._reportStorage;
+    if (reports.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-lighter);">暂无已保存的报告<br><span style="font-size:0.75rem;">点击"生成完整报告"创建新报告</span></div>';
+    } else {
+      list.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead><tr style="border-bottom:2px solid var(--border);">
+            <th style="padding:8px;text-align:left;color:var(--text-light);">报告名称</th>
+            <th style="padding:8px;text-align:center;color:var(--text-light);">反馈数</th>
+            <th style="padding:8px;text-align:center;color:var(--text-light);">生成时间</th>
+            <th style="padding:8px;text-align:center;color:var(--text-light);">操作</th>
+          </tr></thead>
+          <tbody>
+            ${reports.map((r, i) => `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:8px;font-weight:600;">${r.name}</td>
+                <td style="padding:8px;text-align:center;font-size:0.78rem;">${r.totalCount}条</td>
+                <td style="padding:8px;text-align:center;font-size:0.75rem;color:var(--text-light);">${new Date(r.createdAt).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+                <td style="padding:8px;text-align:center;">
+                  <button onclick="openReportInWindow(${i})" style="padding:3px 8px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.72rem;margin-right:4px;">在新窗口打开</button>
+                  <button onclick="deleteReport(${i})" style="padding:3px 8px;background:none;border:1px solid var(--border);color:#dc2626;border-radius:4px;cursor:pointer;font-size:0.72rem;">删除</button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:16px;padding:10px;background:#fef3c7;border-radius:6px;font-size:0.78rem;color:#92400e;">
+          💡 提示：报告为静态HTML，可在浏览器中使用 Ctrl+P / Cmd+P 打印或导出为PDF
+        </div>`;
+    }
+    document.getElementById('report-history-modal').style.display = 'flex';
+  }
+
+  function openReportInWindow(idx) {
+    const r = window._reportStorage[idx];
+    if (!r || !r.html) {
+      showToast('报告内容不存在', 'error'); return;
+    }
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(r.html);
+      win.document.close();
+    } else {
+      showToast('请允许弹出窗口', 'error');
+    }
+    closeReportHistory();
+  }
+
+  function closeReportHistory() {
+    document.getElementById('report-history-modal').style.display = 'none';
+  }
+
+  function deleteReport(idx) {
+    if (!confirm('确定要删除此报告吗？')) return;
+    window._reportStorage.splice(idx, 1);
+    localStorage.setItem('cms_feedback_reports', JSON.stringify(window._reportStorage));
+    viewReportHistory();
+    showToast('报告已删除', 'success');
+  }
+
+  function getWeekNumber(d) {
+    const start = new Date(d.getFullYear(), 0, 1);
+    const diff = d - start;
+    const oneWeek = 604800000;
+    return Math.ceil((diff + start.getDay() * 86400000) / oneWeek);
+  }
+  </script>
+</body>
+</html>
