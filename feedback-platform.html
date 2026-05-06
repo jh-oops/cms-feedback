@@ -221,7 +221,8 @@
       <button class="nav-tab active" data-tab="import">📥 数据导入</button>
       <button class="nav-tab" data-tab="overview">📊 数据总览</button>
       <button class="nav-tab" data-tab="summary">📝 反馈总结</button>
-      <button class="nav-tab" data-tab="highvalue">📋 反馈详情</button>
+      <button class="nav-tab" data-tab="highvalue">💎 高潜用户</button>
+      <button class="nav-tab" data-tab="detail">📋 反馈详情</button>
 
       <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
         <select id="nav-product-select" onchange="onNavProductChange(this.value)" style="padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.8rem;background:var(--card);max-width:160px;cursor:pointer;">
@@ -238,7 +239,6 @@
           <div class="card-title">📂 导入反馈数据</div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary btn-sm" id="btn-load-json">📄 加载已清洗数据</button>
-            <button class="btn btn-secondary btn-sm" id="btn-load-sample">🧪 演示数据</button>
           </div>
         </div>
         <div class="card-body">
@@ -392,7 +392,7 @@
       </div>
     </div>
     
-    <!-- ======== SECTION: 反馈详情 ======== -->
+    <!-- ======== SECTION: 高潜用户 ======== -->
     <div id="section-highvalue" class="section">
       <div class="filter-bar">
         <div class="filter-group">
@@ -420,14 +420,6 @@
           <select class="filter-select" id="hv-module"><option value="">全部</option></select>
         </div>
         <div class="filter-group">
-          <span class="filter-label">高潜用户</span>
-          <select class="filter-select" id="hv-ishv">
-            <option value="">全部</option>
-            <option value="yes">💎 是</option>
-            <option value="no">否</option>
-          </select>
-        </div>
-        <div class="filter-group">
           <span class="filter-label">🔍</span>
           <input type="text" class="search-input" id="hv-search" placeholder="搜索关键词...">
         </div>
@@ -437,7 +429,7 @@
       </div>
       <div class="card">
         <div class="card-header" id="hv-card-header">
-          <div class="card-title" id="hv-card-title">📋 反馈详情</div>
+          <div class="card-title" id="hv-card-title">💎 高潜用户反馈</div>
           <div style="display:flex;gap:8px;" id="hv-card-actions">
             <button class="btn btn-secondary btn-sm" onclick="hvExport()">📥 导出筛选结果</button>
           </div>
@@ -445,6 +437,55 @@
         <div class="card-body">
           <div class="feedback-list" id="hv-list"></div>
           <div class="pagination" id="hv-pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======== SECTION: 反馈详情 ======== -->
+    <div id="section-detail" class="section">
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">情感</span>
+          <select class="filter-select" id="detail-sentiment">
+            <option value="">全部</option>
+            <option value="negative">👎 负反馈</option>
+            <option value="demand">💡 需求/建议</option>
+            <option value="positive">👍 正反馈</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">质量</span>
+          <select class="filter-select" id="detail-quality">
+            <option value="">全部</option>
+            <option value="5">⭐⭐⭐⭐⭐ ≥5分</option>
+            <option value="4">⭐⭐⭐⭐ ≥4分</option>
+            <option value="3">⭐⭐⭐ ≥3分</option>
+            <option value="2">⭐⭐ ≥2分</option>
+            <option value="1">⭐ ≥1分</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">模块</span>
+          <select class="filter-select" id="detail-module"><option value="">全部</option></select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">🔍</span>
+          <input type="text" class="search-input" id="detail-search" placeholder="搜索关键词...">
+        </div>
+        <div class="filter-group" style="margin-left:auto;">
+          <span id="detail-count" style="font-size:0.8rem;color:var(--text-light);"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header" id="detail-card-header">
+          <div class="card-title" id="detail-card-title">📋 全部反馈</div>
+          <div style="display:flex;gap:8px;" id="detail-card-actions">
+            <button class="btn btn-secondary btn-sm" onclick="detailExport()">📥 导出筛选结果</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="feedback-list" id="detail-list"></div>
+          <div class="pagination" id="detail-pagination"></div>
         </div>
       </div>
     </div>
@@ -1408,6 +1449,7 @@
       if (tabId === 'overview') renderOverview();
       if (tabId === 'summary') renderSummary();
       if (tabId === 'highvalue') renderHighValue();
+      if (tabId === 'detail') renderDetail();
     }
     
     function updateHeaderStats() {
@@ -1932,7 +1974,6 @@
       const sentiment = document.getElementById('hv-sentiment').value;
       const quality   = document.getElementById('hv-quality').value;
       const module    = document.getElementById('hv-module').value;
-      const isHv      = document.getElementById('hv-ishv')?.value || '';
       const keyword   = (document.getElementById('hv-search').value || '').toLowerCase();
       const data = cleanedData || [];
 
@@ -1978,7 +2019,10 @@
       // 先计算 hvScore（后续筛选和排序都要用到）
       list.forEach(r => { r._hvScore = hvScoreCalc(r); });
 
-      // 应用筛选（不再有质量≥2的硬过滤，展示所有清洗后的反馈）
+      // 只显示高潜用户（hvScore >= 6）
+      list = list.filter(r => r._hvScore >= HV_THRESHOLD);
+
+      // 应用筛选
       list = list.filter(r => {
         if (sentiment && r.sentiment !== sentiment) return false;
         if (quality) {
@@ -1989,8 +2033,6 @@
           const mod = inferModuleFromContent({ product: r.product, content: r.content, content_zh: r.content_zh });
           if (mod !== module) return false;
         }
-        if (isHv === 'yes' && r._hvScore < HV_THRESHOLD) return false;
-        if (isHv === 'no' && r._hvScore >= HV_THRESHOLD) return false;
         if (keyword) {
           const haystack = (r.content + ' ' + r.content_zh + ' ' + (r.contact || '')).toLowerCase();
           if (!haystack.includes(keyword)) return false;
@@ -2013,9 +2055,8 @@
       const pageData = list.slice(start, start + hvPageSize);
 
       // 更新卡片标题和计数
-      const title = document.getElementById('hv-card-title');
-      title.textContent = isHv === 'yes' ? '💎 高潜用户反馈' : '📋 反馈详情';
-      document.getElementById('hv-count').textContent = `共 ${total} 条${isHv === 'yes' ? '高潜' : ''}反馈`;
+      document.getElementById('hv-card-title').textContent = '💎 高潜用户反馈';
+      document.getElementById('hv-count').textContent = `共 ${total} 条高潜反馈`;
 
       // 评分缓存（供导出时使用）
       hvScoreMap = {};
@@ -2091,6 +2132,198 @@
 
       renderPagination('hv-pagination', hvPage, totalPages);
     }
+
+    // ── 反馈详情页 ──
+    let detailPage = 1;
+    const detailPageSize = 20;
+    let detailExportList = [];
+
+    function renderDetail() {
+      const sentiment = document.getElementById('detail-sentiment').value;
+      const quality   = document.getElementById('detail-quality').value;
+      const module    = document.getElementById('detail-module').value;
+      const keyword   = (document.getElementById('detail-search').value || '').toLowerCase();
+      const data = cleanedData || [];
+
+      // 排除已删除的反馈
+      let list = data.filter(r => !hvDeletedIds.has(String(r.id)));
+
+      // 计算 hvScore
+      const ACTIONABLE = [
+        'fix','bug','error','crash','freeze','lag','slow','broken','not work','doesn\'t work',
+        'cannot','can\'t','unable','fail','stuck','issue','problem',
+        'please add','please fix','hope','wish','need','want','suggest',
+        '崩溃','卡顿','下载','播放','修复','问题','功能','增加','无法','不能','建议',
+      ];
+      function hvScoreCalc(r) {
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+        const len = (r.content || '').length;
+        const combined = ((r.content || '') + ' ' + (r.content_zh || '')).toLowerCase();
+        let s = 0;
+        s += ({ A: 3, B: 1 }[String(r.quality || '').toUpperCase()] || 0);
+        if (len >= 80) s += 3;
+        else if (len >= 50) s += 1;
+        else if (len < 20) s -= 2;
+        if (r.version && r.version !== 'N/A') s += 1;
+        if (r.device && r.device !== 'N/A') s += 1;
+        if (ACTIONABLE.some(kw => combined.includes(kw))) s += 4;
+        s += ({ negative: 3, demand: 4, positive: 0, neutral: 0, invalid: -99 }[r.sentiment] || 0);
+        if (contactKey) s += 2;
+        if (r.ai_score != null) s += Math.floor(r.ai_score);
+        if (r.ai_hv) s += 5;
+        return s;
+      }
+      list.forEach(r => { r._hvScore = hvScoreCalc(r); });
+
+      // 筛选
+      list = list.filter(r => {
+        if (sentiment && r.sentiment !== sentiment) return false;
+        if (quality) {
+          const minScore = parseInt(quality);
+          if (effectiveQuality(r) < minScore) return false;
+        }
+        if (module) {
+          const mod = inferModuleFromContent({ product: r.product, content: r.content, content_zh: r.content_zh });
+          if (mod !== module) return false;
+        }
+        if (keyword) {
+          const haystack = (r.content + ' ' + r.content_zh + ' ' + (r.contact || '')).toLowerCase();
+          if (!haystack.includes(keyword)) return false;
+        }
+        return true;
+      });
+
+      // 排序：质量分降序，同分按 hvScore 降序
+      list.sort((a, b) => {
+        const qa = effectiveQuality(a), qb = effectiveQuality(b);
+        if (qa !== qb) return qb - qa;
+        return (b._hvScore || 0) - (a._hvScore || 0);
+      });
+
+      detailExportList = list;
+      const total = list.length;
+      const totalPages = Math.ceil(total / detailPageSize);
+      if (detailPage > totalPages) detailPage = 1;
+      const start = (detailPage - 1) * detailPageSize;
+      const pageData = list.slice(start, start + detailPageSize);
+
+      document.getElementById('detail-count').textContent = `共 ${total} 条反馈`;
+
+      if (pageData.length === 0) {
+        document.getElementById('detail-list').innerHTML = `
+          <div style="text-align:center;padding:40px 16px;color:var(--text-lighter);">
+            <div style="font-size:2.5rem;margin-bottom:12px;">🔍</div>
+            <div style="font-size:0.9rem;">${(cleanedData || []).length === 0 ? '暂无反馈数据，请先导入数据文件' : '暂无符合条件的反馈'}</div>
+          </div>`;
+        document.getElementById('detail-pagination').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('detail-list').innerHTML = pageData.map((r, i) => {
+        const globalIdx = start + i + 1;
+        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+        const isHighValue = (r._hvScore || 0) >= 6;
+        const qLevel = effectiveQuality(r);
+        const qBorder = qLevel >= 4 ? 'border-left:3px solid #059669;' : qLevel >= 3 ? 'border-left:3px solid #d97706;' : qLevel >= 2 ? 'border-left:3px solid #94a3b8;' : '';
+        return `
+          <div class="feedback-item" style="${qBorder}">
+            <div class="feedback-header">
+              <div class="feedback-left" style="flex-wrap:wrap;gap:4px;">
+                <span style="font-size:0.72rem;color:var(--text-lighter);min-width:28px;">#${globalIdx}</span>
+                <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
+                <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment==='positive'||r.sentiment==='neutral'?'👍正':r.sentiment==='negative'?'👎负':r.sentiment==='demand'?'💡需求':'❌无效'}</span>
+                ${r.ai_score != null ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">⭐${r.ai_score}分</span>` : ''}
+                ${isHighValue ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;padding:1px 5px;border-radius:3px;">💎高潜</span>` : ''}
+                <span style="font-size:0.78rem;color:var(--text-light);font-weight:500;">📍${r.region || '—'}</span>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="font-size:0.72rem;color:var(--text-lighter);">${r.char_count || (r.content||'').length}字</span>
+              </div>
+            </div>
+            <div class="feedback-content">${r.content}</div>
+            ${r.content_zh && r.content_zh !== r.content ? `<div class="feedback-translation">📖 ${r.content_zh}</div>` : ''}
+            <div class="feedback-footer">
+              <span class="feedback-tag">🏷️ ${r.product || '—'}</span>
+              ${r.device ? `<span class="feedback-tag">📱 ${r.device}</span>` : ''}
+              ${r.version ? `<span class="feedback-tag">v${r.version}</span>` : ''}
+              ${r.channel ? `<span class="feedback-tag">🏪${r.channel}</span>` : ''}
+              <span style="font-size:0.72rem;color:var(--text-lighter);">📅${r.date || '—'}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      renderDetailPagination(detailPage, totalPages);
+    }
+
+    function renderDetailPagination(page, totalPages) {
+      const pg = document.getElementById('detail-pagination');
+      if (!pg) return;
+      if (totalPages <= 1) { pg.innerHTML = ''; return; }
+      let html = `<button class="page-btn" ${page<=1?'disabled':''} onclick="detailGoPage(${page-1})">‹</button>`;
+      const start_pg = Math.max(1, page - 2);
+      const end_pg = Math.min(totalPages, page + 2);
+      if (start_pg > 1) html += `<button class="page-btn" onclick="detailGoPage(1)">1</button>${start_pg>2?'<span style="padding:0 4px">…</span>':''}`;
+      for (let i = start_pg; i <= end_pg; i++) html += `<button class="page-btn ${page===i?'active':''}" onclick="detailGoPage(${i})">${i}</button>`;
+      if (end_pg < totalPages) html += `${end_pg<totalPages-1?'<span style="padding:0 4px">…</span>':''}<button class="page-btn" onclick="detailGoPage(${totalPages})">${totalPages}</button>`;
+      html += `<button class="page-btn" ${page>=totalPages?'disabled':''} onclick="detailGoPage(${page+1})">›</button>`;
+      pg.innerHTML = html;
+    }
+
+    function detailGoPage(p) { detailPage = p; renderDetail(); window.scrollTo(0, 0); }
+
+    // 反馈详情导出
+    function detailExport() {
+      if (!detailExportList || detailExportList.length === 0) {
+        showToast('暂无可导出的数据', 'error'); return;
+      }
+      const exportFields = [
+        { header: '排名',      key: '_rank',      width: 8  },
+        { header: '质量分',    key: '_quality',    width: 8  },
+        { header: '质量等级',  key: '_qLevel',     width: 10 },
+        { header: '情感',      key: 'sentiment',   width: 10 },
+        { header: '地区',     key: 'region',      width: 12 },
+        { header: '功能模块',  key: '_module',     width: 16 },
+        { header: '设备',     key: 'device',      width: 14 },
+        { header: '版本',     key: 'version',     width: 12 },
+        { header: '产品',     key: 'product',     width: 14 },
+        { header: '渠道',     key: 'channel',     width: 14 },
+        { header: '联系方式', key: 'contact',     width: 18 },
+        { header: '字数',     key: 'char_count',  width: 8  },
+        { header: '日期',     key: 'date',        width: 12 },
+        { header: '高潜标记', key: '_isHv',       width: 8  },
+        { header: '高潜评分', key: '_hvScore',    width: 8  },
+        { header: '备注',     key: '_note',       width: 20 },
+        { header: '反馈内容', key: 'content',     width: 40 },
+        { header: '中文翻译', key: 'content_zh',  width: 40 },
+      ];
+      const sheetData = detailExportList.map((r, i) => {
+        const row = {};
+        row._rank = i + 1;
+        row._quality = effectiveQuality(r);
+        row._qLevel = qualityLabel(r);
+        exportFields.slice(3).forEach(f => {
+          if (f.key === '_module') row._module = inferModuleFromContent(r) || '其他';
+          else if (f.key === '_isHv') row._isHv = (r._hvScore || 0) >= 6 ? '是' : '否';
+          else if (f.key === '_note') row._note = window._hvNotes[String(r.id)] || '';
+          else row[f.key] = r[f.key] ?? '';
+        });
+        return row;
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(sheetData, { header: exportFields.map(f => f.key), origin: 'A2' });
+      // 设置表头
+      exportFields.forEach((f, i) => { ws[XLSX.utils.encode_cell({ r: 0, c: i })] = { t: 's', v: f.header }; });
+      ws['!cols'] = exportFields.map(f => ({ wch: f.width }));
+      XLSX.utils.book_append_sheet(wb, ws, '反馈详情');
+      XLSX.writeFile(wb, `反馈详情_${new Date().toISOString().slice(0,10)}.xlsx`);
+      showToast(`已导出 ${sheetData.length} 条数据`, 'success');
+    }
+
+    // 绑定反馈详情筛选器事件
+    ['detail-sentiment','detail-quality','detail-module'].forEach(id => {
+      document.getElementById(id)?.addEventListener('change', () => { detailPage = 1; renderDetail(); });
+    });
+    document.getElementById('detail-search')?.addEventListener('input', () => { detailPage = 1; renderDetail(); });
 
     // ── 通用翻页渲染 ──
     function renderPagination(pgId, page, totalPages) {
