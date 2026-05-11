@@ -753,7 +753,11 @@
 
     // 渲染顶部产品选择器
     function renderProductSelector() {
-      const cfg = loadProductConfigs();
+      let cfg = loadProductConfigs();
+      // 兜底：确保至少有默认产品（防止 localStorage 配置损坏）
+      if (!cfg || typeof cfg !== 'object' || Object.keys(cfg).length === 0) {
+        cfg = JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+      }
       const names = Object.keys(cfg).filter(n => n !== '通用').sort();
       const active = getActiveProduct();
       const sel = document.getElementById('active-product-select');
@@ -1032,6 +1036,7 @@
         };
         document.getElementById('cleaning-report-box').classList.add('hidden');
         loadResult(result);
+        saveLastCleanedDataInfo(d, productName);
         showToast(`已加载 ${d.length} 条清洗后数据（${productName}）`, 'success');
       };
     }
@@ -1064,6 +1069,7 @@
         setActiveProduct(productName);
         closeImportProductModal();
         const result = processImportedData(window._pendingDirectData.data);
+        if (result && result.records) saveLastCleanedDataInfo(result.records, productName);
         showToast(`已加载演示数据（${productName}）`, 'success');
       };
     }
@@ -1209,6 +1215,7 @@
     }
 
     // ── 质量分 Helper ─────────────────────────────────────────────
+    const HV_THRESHOLD = 10;
     // ai_score (1-5) 优先；无 AI 分时 fallback 到 Python 脚本的 A/B/C
     // A→5, B→3, C→1（与 ai_score 1-5 等价）
     function effectiveQuality(r) {
@@ -1434,7 +1441,7 @@
       const c = document.getElementById('toast-container');
       const t = document.createElement('div');
       t.className = `toast ${type}`;
-      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      const icon = type === 'success' ? '✓' : type === 'error' ? '' : 'ℹ';
       t.innerHTML = `<span style="font-weight:700;">${icon}</span><span>${msg}</span>`;
       c.appendChild(t);
       setTimeout(() => t.remove(), 3500);
@@ -1505,6 +1512,7 @@
       document.getElementById('f-region').innerHTML = '<option value="">全部地区</option>' + regions.map(r => `<option value="${r}">${r}</option>`).join('');
       document.getElementById('f-module').innerHTML = '<option value="">全部模块</option>' + modules.map(m => `<option value="${m}">${m}</option>`).join('');
       document.getElementById('hv-module').innerHTML = '<option value="">全部模块</option>' + modules.map(m => `<option value="${m}">${m}</option>`).join('');
+      document.getElementById('detail-module').innerHTML = '<option value="">全部</option>' + modules.map(m => `<option value="${m}">${m}</option>`).join('');
     }
     
     function getFiltered() {
@@ -1953,7 +1961,7 @@
           '联系方式': contactKey,
           '字数': r.char_count || (r.content || '').length,
           '日期': r.date || '',
-          '高潜标记': (r._hvScore || 0) >= 6 ? '是' : '否',
+          '高潜标记': (r._hvScore || 0) >= HV_THRESHOLD ? '是' : '否',
           '高潜评分': r._hvScore || 0,
           '人工备注': window._hvNotes[String(r.id)] || '',
           '反馈内容': r.content || '',
@@ -1996,7 +2004,6 @@
       ];
 
       function hvScoreCalc(r) {
-        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
         const len = (r.content || '').length;
         const combined = ((r.content || '') + ' ' + (r.content_zh || '')).toLowerCase();
         let s = 0;
@@ -2004,23 +2011,43 @@
         if (len >= 80) s += 3;
         else if (len >= 50) s += 1;
         else if (len < 20) s -= 2;
-        if (r.version && r.version !== 'N/A') s += 1;
-        if (r.device && r.device !== 'N/A') s += 1;
         if (ACTIONABLE.some(kw => combined.includes(kw))) s += 4;
         s += ({ negative: 3, demand: 4, positive: 0, neutral: 0, invalid: -99 }[r.sentiment] || 0);
-        if (contactKey) s += 2;
         if (r.ai_score != null) s += Math.floor(r.ai_score);
         if (r.ai_hv) s += 5;
         return s;
       }
 
-      const HV_THRESHOLD = 6;
-
       // 先计算 hvScore（后续筛选和排序都要用到）
       list.forEach(r => { r._hvScore = hvScoreCalc(r); });
 
-      // 只显示高潜用户（hvScore >= 6）
+      // 只显示高潜用户（hvScore >= 10）
       list = list.filter(r => r._hvScore >= HV_THRESHOLD);
+
+      // ── 同用户去重：只保留质量分最高的1条 ──
+      // 优先用 r.user 标识；无 r.user 但有 contact 时用 contact（匿名用户场景）；两者都没有则各自独立
+      const userBest = {};
+      let anonSeq = 0;
+      list.forEach(r => {
+        let u = (r.user && String(r.user).trim()) ? String(r.user).trim() : null;
+        if (!u) {
+          const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
+          u = contactKey || ('_anon_' + (++anonSeq));
+        }
+        if (!userBest[u]) userBest[u] = [];
+        userBest[u].push(r);
+      });
+      const deduped = [];
+      Object.values(userBest).forEach(group => {
+        // 每组按 effectiveQuality 降序，再按 hvScore 降序，取第1条
+        group.sort((a, b) => {
+          const qa = effectiveQuality(a), qb = effectiveQuality(b);
+          if (qa !== qb) return qb - qa;
+          return (b._hvScore || 0) - (a._hvScore || 0);
+        });
+        deduped.push(group[0]);
+      });
+      list = deduped;
 
       // 应用筛选
       list = list.filter(r => {
@@ -2046,6 +2073,10 @@
         if (qa !== qb) return qb - qa;
         return (b._hvScore || 0) - (a._hvScore || 0);
       });
+
+      // 最多展示20条
+      const MAX_HV_SHOWN = 20;
+      list = list.slice(0, MAX_HV_SHOWN);
 
       hvExportList = list; // 全量用于导出
       const total = list.length;
@@ -2092,9 +2123,7 @@
                 <span style="font-size:0.72rem;color:var(--text-lighter);min-width:28px;">#${globalIdx}</span>
                 <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
                 <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment==='positive'||r.sentiment==='neutral'?'👍正':r.sentiment==='negative'?'👎负':r.sentiment==='demand'?'💡需求':'❌无效'}</span>
-                ${r.ai_score != null ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">⭐${r.ai_score}分</span>` : ''}
                 ${isHighValue ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;padding:1px 5px;border-radius:3px;">💎高潜</span>` : ''}
-                ${r.ai_hv ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#818cf8,#6366f1);color:#fff;padding:1px 5px;border-radius:3px;">🤖AI高潜</span>` : ''}
                 <span style="font-size:0.78rem;color:var(--text-light);font-weight:500;">📍${r.region || '—'}</span>
                 ${r.device ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">📱${r.device}</span>` : ''}
                 ${channelTag ? `<span style="font-size:0.68rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;">🏪${channelTag}</span>` : (multiCount > 1 ? `<span style="font-size:0.68rem;background:#ede9fe;color:#5b21b6;padding:1px 5px;border-radius:3px;">👤${multiCount}次反馈</span>` : '')}
@@ -2156,7 +2185,6 @@
         '崩溃','卡顿','下载','播放','修复','问题','功能','增加','无法','不能','建议',
       ];
       function hvScoreCalc(r) {
-        const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
         const len = (r.content || '').length;
         const combined = ((r.content || '') + ' ' + (r.content_zh || '')).toLowerCase();
         let s = 0;
@@ -2164,11 +2192,8 @@
         if (len >= 80) s += 3;
         else if (len >= 50) s += 1;
         else if (len < 20) s -= 2;
-        if (r.version && r.version !== 'N/A') s += 1;
-        if (r.device && r.device !== 'N/A') s += 1;
         if (ACTIONABLE.some(kw => combined.includes(kw))) s += 4;
         s += ({ negative: 3, demand: 4, positive: 0, neutral: 0, invalid: -99 }[r.sentiment] || 0);
-        if (contactKey) s += 2;
         if (r.ai_score != null) s += Math.floor(r.ai_score);
         if (r.ai_hv) s += 5;
         return s;
@@ -2222,7 +2247,7 @@
       document.getElementById('detail-list').innerHTML = pageData.map((r, i) => {
         const globalIdx = start + i + 1;
         const contactKey = isRealContact(r.contact) ? String(r.contact).trim() : null;
-        const isHighValue = (r._hvScore || 0) >= 6;
+        const isHighValue = (r._hvScore || 0) >= HV_THRESHOLD;
         const qLevel = effectiveQuality(r);
         const qBorder = qLevel >= 4 ? 'border-left:3px solid #059669;' : qLevel >= 3 ? 'border-left:3px solid #d97706;' : qLevel >= 2 ? 'border-left:3px solid #94a3b8;' : '';
         return `
@@ -2232,7 +2257,6 @@
                 <span style="font-size:0.72rem;color:var(--text-lighter);min-width:28px;">#${globalIdx}</span>
                 <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
                 <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment==='positive'||r.sentiment==='neutral'?'👍正':r.sentiment==='negative'?'👎负':r.sentiment==='demand'?'💡需求':'❌无效'}</span>
-                ${r.ai_score != null ? `<span style="font-size:0.68rem;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px;">⭐${r.ai_score}分</span>` : ''}
                 ${isHighValue ? `<span style="font-size:0.68rem;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;padding:1px 5px;border-radius:3px;">💎高潜</span>` : ''}
                 <span style="font-size:0.78rem;color:var(--text-light);font-weight:500;">📍${r.region || '—'}</span>
               </div>
@@ -2303,7 +2327,7 @@
         row._qLevel = qualityLabel(r);
         exportFields.slice(3).forEach(f => {
           if (f.key === '_module') row._module = inferModuleFromContent(r) || '其他';
-          else if (f.key === '_isHv') row._isHv = (r._hvScore || 0) >= 6 ? '是' : '否';
+          else if (f.key === '_isHv') row._isHv = (r._hvScore || 0) >= HV_THRESHOLD ? '是' : '否';
           else if (f.key === '_note') row._note = window._hvNotes[String(r.id)] || '';
           else row[f.key] = r[f.key] ?? '';
         });
@@ -2635,59 +2659,114 @@
       // File import
       const zone = document.getElementById('import-zone');
       const input = document.getElementById('file-input');
-      zone.addEventListener('click', () => input.click());
-      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-      zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]); });
-      input.addEventListener('change', e => { if (e.target.files[0]) handleFileImport(e.target.files[0]); });
+      zone?.addEventListener('click', () => input?.click());
+      zone?.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone?.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone?.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleFileImport(e.dataTransfer.files[0]); });
+      input?.addEventListener('change', e => { if (e.target.files[0]) handleFileImport(e.target.files[0]); });
       
-      // Load pre-cleaned JSON (from the cleaned xlsx we generated)
-      document.getElementById('btn-load-json').addEventListener('click', () => {
+      // Load pre-cleaned JSON — with localStorage memory of last load
+      async function tryAutoLoadData() {
+        const lastInfo = localStorage.getItem('lastCleanedDataInfo');
+        if (!lastInfo) return; // 无上次记录，不自动加载
+
+        let lastHint = '';
+        try {
+          const info = JSON.parse(lastInfo);
+          lastHint = `${info.count} 条，${info.product}`;
+        } catch(e) {}
+
+        showToast(`🔄 发现上次数据（${lastHint}），正在加载…`, 'info');
+
+        try {
+          const r = await fetch('feedback_data.json');
+          if (!r.ok) throw new Error('file not found');
+          const data = await r.json();
+          const active = getActiveProduct();
+          if (active && active !== '') {
+            rawData = data;
+            cleanedData = data;
+            updateHeaderStats();
+            renderFilters();
+            loadResult({
+              total: data.length, kept: data.length, records: data,
+              removed: { empty:0, url:0, search:0, short:0, dup:0, lang_short:0 }
+            });
+            showToast(`✅ 已自动加载 ${data.length} 条数据（${active}）`, 'success');
+          } else {
+            // 有上次记录但未选择产品，引导用户选择
+            window._pendingJsonData = data;
+            openImportJsonModal(data);
+          }
+        } catch(e) {
+          // fetch 失败（文件不存在或网络问题），提示用户手动操作
+          showToast(`⚠️ 数据文件不可访问，请手动点击「加载已清洗数据」`, 'error');
+        }
+      }
+
+      document.getElementById('btn-load-json')?.addEventListener('click', () => {
+        const lastInfo = localStorage.getItem('lastCleanedDataInfo');
+        let lastHint = '';
+        if (lastInfo) {
+          try {
+            const info = JSON.parse(lastInfo);
+            lastHint = `（上次：${info.count} 条，${info.product}，@${info.time}）`;
+          } catch(e) {}
+        }
+
+        if (lastInfo) {
+          showToast(`🔄 正在加载上次数据 ${lastHint}…`, 'info', 3000);
+        }
+
         fetch('feedback_data.json')
-          .then(r => r.json())
+          .then(r => {
+            if (!r.ok) throw new Error('file not found');
+            return r.json();
+          })
           .then(data => {
             const active = getActiveProduct();
             if (active && active !== '') {
-              // 已选产品 → 直接加载
-              window._pendingJsonData = data;
-              const productName = active;
-              const d = data;
-              rawData = d;
-              cleanedData = d;
+              rawData = data;
+              cleanedData = data;
               updateHeaderStats();
               renderFilters();
-              const result = {
-                total: d.length,
-                kept: d.length,
-                records: d,
+              loadResult({
+                total: data.length, kept: data.length, records: data,
                 removed: { empty:0, url:0, search:0, short:0, dup:0, lang_short:0 }
-              };
-              document.getElementById('cleaning-report-box').classList.add('hidden');
-              loadResult(result);
-              showToast(`已加载 ${d.length} 条清洗后数据（${productName}）`, 'success');
+              });
+              saveLastCleanedDataInfo(data, active);
+              showToast(`✅ 已加载 ${data.length} 条清洗后数据（${active}）`, 'success');
             } else {
-              // 未选产品 → 弹出选择
               window._pendingJsonData = data;
               openImportJsonModal(data);
             }
           })
           .catch(() => {
-            // Fallback: prompt user to upload the cleaned json/xlsx
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json,.xlsx';
-            input.onchange = e => { if (e.target.files[0]) handleFileImport(e.target.files[0]); };
-            input.click();
+            if (!lastInfo) {
+              showToast('❌ 未找到 feedback_data.json，请确认文件在同目录', 'error');
+            } else {
+              showToast(`❌ 数据文件不可访问 ${lastHint}，请手动导入`, 'error');
+            }
           });
       });
 
-      // Demo data
-      document.getElementById('btn-load-sample').addEventListener('click', () => {
-        openImportProductModalForData(generateSampleData(), 'demo');
-      });
-      
+      // 启动时自动尝试加载上次数据
+      tryAutoLoadData();
+
+      // 保存上次加载信息到 localStorage
+      function saveLastCleanedDataInfo(data, product) {
+        try {
+          localStorage.setItem('lastCleanedDataInfo', JSON.stringify({
+            count: data.length,
+            product: product,
+            time: new Date().toLocaleString('zh-CN')
+          }));
+        } catch(e) {}
+      }
+
+
       // Clear
-      document.getElementById('btn-clear').addEventListener('click', () => {
+      document.getElementById('btn-clear')?.addEventListener('click', () => {
         rawData = []; cleanedData = [];
         document.getElementById('data-preview-box').classList.add('hidden');
         document.getElementById('cleaning-report-box').classList.add('hidden');
@@ -2699,7 +2778,7 @@
       });
       
       // Export JSON
-      document.getElementById('btn-export-json').addEventListener('click', () => {
+      document.getElementById('btn-export-json')?.addEventListener('click', () => {
         if (!cleanedData || !cleanedData.length) { showToast('无数据可导出', 'error'); return; }
         const blob = new Blob([JSON.stringify(cleanedData, null, 2)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -2708,43 +2787,51 @@
       });
 
       // 全量导出 Excel（含 AI 翻译/情感/质量等全部字段）
-      document.getElementById('btn-export-full').addEventListener('click', () => {
+      document.getElementById('btn-export-full')?.addEventListener('click', () => {
         if (!cleanedData || !cleanedData.length) { showToast('无数据可导出', 'error'); return; }
         const exportFields = [
-          { header: '排名',        key: '_rank',       width: 8  },
-          { header: '国家',        key: 'country',      width: 12 },
-          { header: '日期',        key: 'date',         width: 12 },
-          { header: '质量',        key: 'quality',      width: 8  },
-          { header: '情感',        key: 'sentiment',    width: 10 },
-          { header: '模块',        key: 'module',       width: 14 },
-          { header: '地区',        key: 'region',       width: 12 },
-          { header: '机型',        key: 'device',       width: 16 },
-          { header: '版本',        key: 'version',      width: 14 },
-          { header: 'OS版本',     key: 'os_version',   width: 12 },
-          { header: '联系方式',    key: 'contact',      width: 18 },
-          { header: 'AI质量分',    key: 'ai_score',     width: 10 },
-          { header: 'AI高潜',      key: 'ai_hv',        width: 8  },
-          { header: 'AI模块分类',  key: 'ai_module',    width: 16 },
-          { header: '用户ID',     key: 'user',          width: 16 },
-          { header: '反馈内容(原文)',  key: 'content',  width: 40 },
-          { header: '反馈内容(中文)',  key: 'content_zh',width: 40 },
-          { header: '运营备注',    key: 'ops_notes',    width: 20 },
-          { header: '备注',        key: '_note',        width: 20 },
+          { header: '排名',            key: '_rank',       width: 8  },
+          { header: '国家',            key: 'country',      width: 12 },
+          { header: '日期',            key: 'date',         width: 12 },
+          { header: '质量',            key: 'quality',      width: 8  },
+          { header: '情感',            key: 'sentiment',    width: 10 },
+          { header: '模块',            key: 'module',       width: 14 },
+          { header: '地区',            key: 'region',       width: 12 },
+          { header: '机型',            key: 'device',       width: 16 },
+          { header: '版本',            key: 'version',      width: 14 },
+          { header: 'OS版本',          key: 'os_version',   width: 12 },
+          { header: '联系方式',        key: 'contact',      width: 18 },
+          { header: 'AI质量分',        key: 'ai_score',     width: 10 },
+          { header: 'AI高潜',          key: 'ai_hv',        width: 8  },
+          { header: 'AI模块分类',      key: 'ai_module',    width: 16 },
+          { header: '用户ID',          key: 'user',          width: 16 },
+          { header: '反馈内容(原文)',  key: 'content',      width: 40 },
+          { header: '反馈内容(中文)',  key: 'content_zh',   width: 40 },
+          { header: '运营备注',        key: 'ops_notes',    width: 20 },
+          { header: '备注',            key: '_note',        width: 20 },
         ];
-        const rows = cleanedData.map((r, i) => {
-          const row = { [exportFields[0].key]: i + 1 };
+        // 使用 aoa_to_sheet 确保只有中文列名，无空列
+        const headers = exportFields.map(f => f.header);
+        const dataRows = cleanedData.map((r, i) => {
+          const row = [i + 1];
           exportFields.slice(1).forEach(f => {
-            row[f.key] = (r[f.key] != null ? String(r[f.key]) : '');
+            const val = f.key === '_note'
+              ? ((window._hvNotes && window._hvNotes[r.id]) || '')
+              : (r[f.key] != null ? String(r[f.key]) : '');
+            row.push(val);
           });
-          row._note = (window._hvNotes && window._hvNotes[r.id]) || '';
           return row;
         });
-        const ws = XLSX.utils.json_to_sheet(rows, { header: exportFields.map(f => f.header) });
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
         // 设置每列宽度
-        exportFields.forEach((f, i) => { ws['!cols'] = ws['!cols'] || []; ws['!cols'][i] = { wch: f.width }; });
+        ws['!cols'] = exportFields.map(f => ({ wch: f.width }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '反馈全量数据');
-        XLSX.writeFile(wb, `feedback_full_${new Date().toISOString().slice(0,10)}.xlsx`);
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = `feedback_full_${new Date().toISOString().slice(0,10)}.xlsx`; a.click();
+        URL.revokeObjectURL(url);
         showToast(`已导出 ${cleanedData.length} 条全量数据（Excel）`, 'success');
       });
       
@@ -2961,12 +3048,12 @@
 
   <!-- 历史报告弹窗 -->
   <div id="report-history-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:var(--card-bg);border-radius:12px;padding:24px;width:min(680px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="background:#ffffff;color:#1e293b;border-radius:12px;padding:24px;width:min(680px,95vw);max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <div style="font-size:1.05rem;font-weight:700;">📚 已保存的报告</div>
-        <button onclick="closeReportHistory()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-light);">✕</button>
+        <button onclick="closeReportHistory()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#64748b;">✕</button>
       </div>
-      <div id="rpt-history-list" style="font-size:0.82rem;"></div>
+      <div id="rpt-history-list" style="font-size:0.82rem;color:#1e293b;"></div>
     </div>
   </div>
 
@@ -2979,9 +3066,10 @@
     if (!cleanedData || cleanedData.length === 0) {
       showToast('请先导入数据后再生成报告', 'error'); return;
     }
+    try {
     
     // 获取所有产品
-    const products = [...new Set(cleanedData.map(r => r.product).filter(Boolean))];
+    const products = [...new Set((cleanedData || []).map(r => r.product).filter(Boolean))];
     
     // 生成报告HTML内容
     const now = new Date();
@@ -3004,9 +3092,9 @@
     const topRegions = Object.entries(regionStats).sort((a,b) => b[1]-a[1]).slice(0, 10);
     
     // 典型问题分析 — 使用当前产品的固定模块列表
-    const _statsCfg = getStatsConfig();
+    const _statsCfg = getStatsConfig() || { modules: [], keywords: {} };
     const moduleIssues = {};
-    _statsCfg.modules.forEach(m => { moduleIssues[m] = { count: 0, negative: 0, demand: 0, themes: [], samples: [] }; });
+    _statsCfg.modules.forEach(m => { moduleIssues[m] = { count: 0, negative: 0, demand: 0, themes: [], allFeedback: [] }; });
 
     cleanedData.forEach(r => {
       if (r.sentiment !== 'negative' && r.sentiment !== 'demand') return;
@@ -3030,7 +3118,7 @@
     });
 
     // 按固定顺序输出，只保留有数据的模块
-    const typicalIssues = _statsCfg.modules
+    const typicalIssues = (_statsCfg.modules || [])
       .map(mod => ({ module: mod, ...moduleIssues[mod] }))
       .filter(m => m.count > 0)
       .sort((a, b) => b.count - a.count);
@@ -3057,7 +3145,7 @@
       return score;
     }
     
-    const highValueItems = [...cleanedData]
+    const highValueItems = [...(cleanedData || [])]
       .map(r => ({ ...r, score: getSemScore(r), note: window._hvNotes[String(r.id)] || '' }))
       .filter(r => effectiveQuality(r) >= 3)  // ai_score ≥ 3 或 fallback 质量 A/B
       .sort((a, b) => b.score - a.score)
@@ -3236,31 +3324,35 @@
     } else {
       showToast('请允许弹出窗口以查看报告', 'error');
     }
+    } catch(e) {
+      console.error('[generateFullReport] 报告生成失败:', e, 'stack:', e.stack);
+      showToast('报告生成失败：' + e.message, 'error');
+    }
   }
 
   window.viewReportHistory = function viewReportHistory() {
     const list = document.getElementById('rpt-history-list');
     const reports = window._reportStorage;
     if (reports.length === 0) {
-      list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-lighter);">暂无已保存的报告<br><span style="font-size:0.75rem;">点击"生成完整报告"创建新报告</span></div>';
+      list.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;">暂无已保存的报告<br><span style="font-size:0.75rem;">点击"生成完整报告"创建新报告</span></div>';
     } else {
       list.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-          <thead><tr style="border-bottom:2px solid var(--border);">
-            <th style="padding:8px;text-align:left;color:var(--text-light);">报告名称</th>
-            <th style="padding:8px;text-align:center;color:var(--text-light);">反馈数</th>
-            <th style="padding:8px;text-align:center;color:var(--text-light);">生成时间</th>
-            <th style="padding:8px;text-align:center;color:var(--text-light);">操作</th>
+          <thead><tr style="border-bottom:2px solid #e2e8f0;">
+            <th style="padding:8px;text-align:left;color:#64748b;">报告名称</th>
+            <th style="padding:8px;text-align:center;color:#64748b;">反馈数</th>
+            <th style="padding:8px;text-align:center;color:#64748b;">生成时间</th>
+            <th style="padding:8px;text-align:center;color:#64748b;">操作</th>
           </tr></thead>
           <tbody>
             ${reports.map((r, i) => `
-              <tr style="border-bottom:1px solid var(--border);">
+              <tr style="border-bottom:1px solid #e2e8f0;">
                 <td style="padding:8px;font-weight:600;">${r.name}</td>
                 <td style="padding:8px;text-align:center;font-size:0.78rem;">${r.totalCount}条</td>
-                <td style="padding:8px;text-align:center;font-size:0.75rem;color:var(--text-light);">${new Date(r.createdAt).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+                <td style="padding:8px;text-align:center;font-size:0.75rem;color:#64748b;">${new Date(r.createdAt).toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
                 <td style="padding:8px;text-align:center;">
-                  <button onclick="openReportInWindow(${i})" style="padding:3px 8px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.72rem;margin-right:4px;">在新窗口打开</button>
-                  <button onclick="deleteReport(${i})" style="padding:3px 8px;background:none;border:1px solid var(--border);color:#dc2626;border-radius:4px;cursor:pointer;font-size:0.72rem;">删除</button>
+                  <button onclick="openReportInWindow(${i})" style="padding:3px 8px;background:#4f46e5;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.72rem;margin-right:4px;">在新窗口打开</button>
+                  <button onclick="deleteReport(${i})" style="padding:3px 8px;background:none;border:1px solid #e2e8f0;color:#dc2626;border-radius:4px;cursor:pointer;font-size:0.72rem;">删除</button>
                 </td>
               </tr>`).join('')}
           </tbody>
