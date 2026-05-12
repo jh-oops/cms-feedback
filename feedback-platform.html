@@ -366,9 +366,16 @@
       <div class="stats-grid" id="summary-stats"></div>
       <!-- 典型问题统计卡片 -->
       <div class="card" style="margin-bottom:16px;">
-        <div class="card-header"><div class="card-title">📊 典型问题统计</div><span style="font-size:0.75rem;color:var(--text-light);">各模块负面/需求反馈数量及核心问题</span></div>
+        <div class="card-header">
+          <div class="card-title">📊 典型问题统计</div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="switchIssueStatsView('card')" id="btn-issue-card" style="padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;border:1px solid var(--border);background:var(--primary);color:#fff;">🗕 卡片</button>
+            <button onclick="switchIssueStatsView('chart')" id="btn-issue-chart" style="padding:4px 10px;border-radius:6px;font-size:0.75rem;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text-light);">📊 图表</button>
+          </div>
+        </div>
         <div class="card-body">
           <div id="issue-stats-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
+          <div id="issue-stats-chart" style="display:none;height:320px;"><canvas id="chart-issue-stats"></canvas></div>
         </div>
       </div>
       <!-- 典型问题模块列表（含展开样本） -->
@@ -2503,8 +2510,8 @@
 
             return {
               id: row[keys[0]] || i + 1,
-              user:   get(['国家', '地区', 'region', 'country']) || '匿名用户',
-              region: get(['国家', '地区', 'region', 'country']),
+              user:   get(['国家', '地区', '源语言', 'region', 'country', 'language']) || '匿名用户',
+              region: get(['国家', '地区', '源语言', 'region', 'country', 'language']),
               product: get(['映射功能模块', '功能模块', 'module', '分类', 'category']),
               content: raw_content,
               content_zh: final_zh,
@@ -2513,7 +2520,7 @@
               sentiment,
               quality: getQuality(3, raw_content),
               char_count: raw_content.length,
-              device:  get(['机型', 'device', 'phone', 'model']),
+              device:  get(['机型', '设备名称', 'device', 'phone', 'model']),
               version: get(['应用版本', 'version', '版本']),
               channel: get(['问题类型', '反馈类型（来自数据源）', 'type', '类型']),
               contact: get(['联系方式', 'contact', 'email', 'mail']),
