@@ -395,15 +395,33 @@ def clean_and_analyze(filepath: str) -> dict:
     print(f"\n📊 有ID数据行: {total} 条")
 
     cols = list(df.columns)
-    col_id      = cols[0]
-    col_region  = cols[1]
-    col_content = cols[2]   # 原文（主）
-    col_zh      = cols[3]   # 中文译文（辅助判断）
-    col_module  = cols[7]
-    col_type    = cols[8]
-    col_device  = cols[9]
-    col_version = cols[10]
-    col_time    = cols[15]
+
+    def find_col(*candidates):
+        """按候选表头名顺序查找，返回第一个匹配的列名，找不到返回 None"""
+        for name in candidates:
+            if name in cols:
+                return name
+        return None
+
+    col_id      = cols[0]   # 第一列始终是 ID
+    # 国家/地区：CMS=「地区」，GP=「源语言」
+    col_region  = find_col('地区', '源语言', 'region', 'country', 'language') or cols[1]
+    # 主内容原文：CMS=「问题描述」，GP=「评价内容」
+    col_content = find_col('问题描述', '评价内容', 'content', 'description', 'feedback') or cols[2]
+    # 中文译文：CMS=「问题描述(中文)」，GP=「评价内容(中文)」或同名带括号变体
+    col_zh      = find_col('问题描述(中文)', '评价内容(中文)', '中文译文', 'content_zh', 'translation') or cols[3]
+    # 功能模块
+    col_module  = find_col('功能模块', 'module', 'category') or cols[7]
+    # 问题类型
+    col_type    = find_col('问题类型', '反馈类型', 'type', 'issue_type') or cols[8]
+    # 机型：CMS=「机型」，GP=「设备名称」
+    col_device  = find_col('机型', '设备名称', 'device', 'model', 'phone') or cols[9]
+    # 应用版本：CMS=「应用版本」，GP=「版本名称」
+    col_version = find_col('应用版本', '版本名称', 'version', 'app_version') or cols[10]
+    # 提交时间
+    col_time    = find_col('提交时间', 'submit_time', 'time', 'date', '时间') or cols[15]
+
+    print(f"📋 字段映射: 地区={col_region} | 内容={col_content} | 机型={col_device} | 版本={col_version} | 时间={col_time}")
 
     stats = {k: 0 for k in [
         'empty', 'ultra_short', 'polite', 'gibberish', 'url', 'number',

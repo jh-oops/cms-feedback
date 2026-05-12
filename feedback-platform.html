@@ -2521,8 +2521,8 @@
               quality: getQuality(3, raw_content),
               char_count: raw_content.length,
               device:  get(['机型', '设备名称', 'device', 'phone', 'model']),
-              version: get(['应用版本', 'version', '版本']),
-              channel: get(['问题类型', '反馈类型（来自数据源）', 'type', '类型']),
+              version: get(['应用版本', '版本名称', 'version', '版本']),
+              channel: get(['问题类型', '反馈类型（来自数据源）', '反馈类型', 'type', '类型']),
               contact: get(['联系方式', 'contact', 'email', 'mail']),
               // 新格式补充字段
               user_id:    get(['用户ID', 'user_id']),
