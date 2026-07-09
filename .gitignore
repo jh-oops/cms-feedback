@@ -1,4 +1,4 @@
-.xlsx
+*.xlsx
 .DS_Store
 test_*.js
 test_*.py
