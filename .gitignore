@@ -1,1 +1,5 @@
 .xlsx
+.DS_Store
+test_*.js
+test_*.py
+run_ai_enrich.py
