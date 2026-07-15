@@ -3798,8 +3798,28 @@
 ${inputLines.join('\n')}`;
 
         const signal = resetAiAbortController();
-        const result = await callGeminiSingle(apiKey, prompt, 'gemini-2.5-flash-lite', 32768, 'gemini-2.5-flash', signal);
-        if (useGlobal) updateGlobalProgress(progressOffset + progressRange * 0.6, '解析聚合结果...', '');
+        // ── 聚合"存活"指示：实时计时 + 进度条缓动，避免长请求被误判为卡死 ──
+        const aggStart = Date.now();
+        let _creepPct = progressOffset + 2;
+        window._aggHardTimedOut = false;
+        const _aggTimer = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - aggStart) / 1000);
+          const label = elapsed > 90 ? 'AI 聚合分析中...（较慢，请耐心等待）' : 'AI 聚合分析中...';
+          if (useGlobal) updateGlobalProgress(_creepPct, label, `已运行 ${elapsed}s · 正在语义聚类高频问题`);
+          if (_creepPct < progressOffset + progressRange * 0.9) _creepPct += 0.5;
+        }, 1000);
+        const _aggHardTimeout = setTimeout(() => {
+          window._aggHardTimedOut = true;
+          if (_aiAbortController) _aiAbortController.abort();
+        }, 180000);
+        let result;
+        try {
+          result = await callGeminiSingle(apiKey, prompt, 'gemini-2.5-flash-lite', 32768, 'gemini-2.5-flash', signal);
+        } finally {
+          clearInterval(_aggTimer);
+          clearTimeout(_aggHardTimeout);
+        }
+        if (useGlobal) updateGlobalProgress(progressOffset + progressRange * 0.95, '解析聚合结果...', '');
 
         let cleaned = result.replace(/```[^\n]*\n?/g, '').trim();
 
@@ -3842,7 +3862,12 @@ ${inputLines.join('\n')}`;
           console.log('[runAiIssueAggregation] 已中止');
           window._keyIssueAnalysis = null;
           localStorage.removeItem('fb_ai_issue_analysis');
-          if (statusEl) statusEl.textContent = '⏹ AI 聚合已停止，展示原始摘要列表';
+          if (window._aggHardTimedOut) {
+            if (statusEl) statusEl.textContent = '⏱ AI 聚合超时（>180s），网关可能无响应，已自动终止';
+            showToast('⏱ AI 聚合超时，请检查网络/网关或稍后重试', 'error');
+          } else {
+            if (statusEl) statusEl.textContent = '⏹ AI 聚合已停止，展示原始摘要列表';
+          }
           renderKeyIssuesView();
           if (useGlobal) hideGlobalProgress();
           return;
