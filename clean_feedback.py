@@ -648,6 +648,13 @@ def clean_and_analyze(filepath: str) -> dict:
             'char_count': int(row['char_count']),
         })
 
+    # 隐私边界：公开平台数据(feedback_data.json)绝不携带联系方式等 PII。
+    # 注意：本地标注产物 weekly_downloads/*_labeled 仍保留 contact，供内部跟进使用。
+    _PII_KEYS = ('contact', '联系方式', 'email', 'phone', '邮箱', '手机', '电话')
+    for _r in json_records:
+        for _k in _PII_KEYS:
+            _r.pop(_k, None)
+
     json_path = '/Users/shswhuangyi/Desktop/workbuddy/cms_feedback/feedback_data.json'
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(json_records, f, ensure_ascii=False, indent=2)
