@@ -15,4 +15,5 @@ run_weekly.py
 label_all.py
 label_feedback.py
 weekly_download.py
+build_index.py
 _dev_artifacts/
