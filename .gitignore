@@ -6,6 +6,7 @@ run_ai_enrich.py
 .automation_config.json
 .cookies.json
 weekly_downloads/
+weekly_reports/
 *.har
 __pycache__/
 # 本地自动化脚本（仅本地运行，含内部逻辑，不推 GitHub）
