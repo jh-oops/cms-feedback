@@ -3,3 +3,15 @@
 test_*.js
 test_*.py
 run_ai_enrich.py
+.automation_config.json
+.cookies.json
+weekly_downloads/
+*.har
+__pycache__/
+# 本地自动化脚本（仅本地运行，含内部逻辑，不推 GitHub）
+report_weekly.py
+run_weekly.py
+label_all.py
+label_feedback.py
+weekly_download.py
+_dev_artifacts/
