@@ -19,10 +19,14 @@ CMS渠道用户反馈数据清洗脚本 v3
   6.  纯夸赞句（无实质问题/建议）：如 "this app is so amazing!" 等
 """
 
+import os
 import pandas as pd
 import re
 import json
 from datetime import datetime
+
+# 脚本自身所在目录（目录搬家后自动跟随，避免硬编码绝对路径）
+BASE = os.path.dirname(os.path.abspath(__file__))
 
 # ============================================================
 # 豁免关键词（超短内容但有实际意义）
@@ -655,7 +659,7 @@ def clean_and_analyze(filepath: str) -> dict:
         for _k in _PII_KEYS:
             _r.pop(_k, None)
 
-    json_path = '/Users/shswhuangyi/Desktop/workbuddy/cms_feedback/feedback_data.json'
+    json_path = os.path.join(BASE, 'feedback_data.json')
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(json_records, f, ensure_ascii=False, indent=2)
 
