@@ -631,6 +631,28 @@
       try { return JSON.parse(el.textContent); } catch(e) { return null; }
     }
 
+    // 内容语言 → 地区高置信度推断（仅用于补齐 GP 等缺失国家字段的场景）
+    // 返回空字符串表示置信度不足，保持原空值；推断结果会带 _regionInferred 标记。
+    function inferRegion(text) {
+      if (!text) return '';
+      const t = String(text).trim();
+      if (!t) return '';
+      const lower = t.toLowerCase();
+      // 俄语/乌克兰语/白俄罗斯语等西里尔字母 → 俄罗斯联邦（主要市场）
+      if (/[\u0400-\u04FF]/.test(t)) return '俄罗斯联邦';
+      // 孟加拉语
+      if (/[\u0980-\u09FF]/.test(t)) return '孟加拉国';
+      // 波兰语（特殊字符或常见词）
+      if (/[ąćęłńóśźż]/i.test(t) || /\b(najlepsza|aplikacja|podstawowych|notatek|dziękuję|dzięki|bardzo|dobry|dobra|wszystko|program|działa|działać)\b/i.test(lower)) return '波兰';
+      // 印尼语/马来语（高置信关键词）
+      if (/\b(untuk|dengan|yang|dan|ini|itu|saya|anda|kita|bisa|aplikasi|bagus|kenapa|krna|karna|catatan|sangat|banyak|fitur|folder|tidak|masih|bisa|dalam|waktu|orang|lain|buka|keluar|hapus|langsung|terkunci|aman|backup|kntol)\b/i.test(lower)) return '印度尼西亚';
+      // 土耳其语（特殊字符或常见词）
+      if (/[çğıöşü]/i.test(t) || /\b(ve|bir|çok|iyi|için|ben|bunu|bütün|notum|var|yok|lütfen|yap|yapın|aç|açın|kadar|tüm|her)\b/i.test(lower)) return '土耳其';
+      // 阿拉伯语：覆盖多个中东/北非国家，统一标为"阿拉伯语区"，避免误标具体国家
+      if (/[\u0600-\u06FF]/.test(t)) return '阿拉伯语区';
+      return '';
+    }
+
     // ============================================================
     // STATE
     // ============================================================
@@ -2417,7 +2439,7 @@
             <div class="feedback-header">
               <div class="feedback-left" style="flex-wrap:wrap;gap:4px;align-items:center;">
                 <span style="font-size:0.72rem;color:var(--text-lighter);min-width:28px;">#${globalIdx}</span>
-                ${r.region ? `<span style="font-size:0.72rem;background:#f0fdf4;color:#166534;padding:1px 6px;border-radius:3px;">🌍${r.region}</span>` : ''}
+                ${r.region ? `<span style="font-size:0.72rem;background:${r._regionInferred?'#fefce8':'#f0fdf4'};color:${r._regionInferred?'#a16207':'#166534'};padding:1px 6px;border-radius:3px;${r._regionInferred?'border:1px dashed #fde047;':''}" title="${r._regionInferred?'地区为空，按内容语言推断':'地区'}">🌍${r.region}${r._regionInferred?'*':''}</span>` : ''}
                 ${r.device ? `<span style="font-size:0.72rem;background:#dbeafe;color:#1d4ed8;padding:1px 6px;border-radius:3px;">📱${r.device}</span>` : ''}
                 ${r.version ? `<span style="font-size:0.72rem;background:#e0f2fe;color:#0369a1;padding:1px 6px;border-radius:3px;">v${r.version}</span>` : ''}
                 ${contactKey ? `<span style="font-size:0.72rem;background:#ede9fe;color:#5b21b6;padding:1px 6px;border-radius:3px;">📧${contactKey}</span>` : ''}
@@ -2694,7 +2716,7 @@
         <div class="feedback-item">
           <div class="feedback-header">
             <div class="feedback-left">
-              <span class="feedback-user">${r.region || '匿名用户'}</span>
+              <span class="feedback-user">${r.user || '匿名用户'}</span>
               <span class="feedback-badge ${qualityClass(r)}">${qualityLabel(r)}</span>
               <span class="feedback-sentiment sentiment-${r.sentiment}">${r.sentiment === 'positive' || r.sentiment === 'neutral' ? '👍正反馈' : r.sentiment === 'negative' ? '👎负反馈' : r.sentiment === 'demand' ? '💡需求' : r.sentiment === 'invalid' ? '❌无效' : '👍正反馈'}</span>
               ${r.ai_score != null ? `<span style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;padding:1px 6px;border-radius:4px;font-size:0.72rem;font-weight:600;">⭐${r.ai_score}分</span>` : ''}
@@ -2706,7 +2728,7 @@
           ${r.ai_summary ? `<div style="color:var(--text-accent);font-size:0.78rem;margin:4px 0;padding:2px 8px;background:var(--bg-tag);display:inline-block;border-radius:4px;">💡 ${r.ai_summary}</div>` : ''}
           ${r.content_zh ? `<div class="feedback-translation">📖 ${r.content_zh}</div>` : ''}
           <div class="feedback-footer">
-            <span class="feedback-tag">📍 ${r.region}</span>
+            <span class="feedback-tag" title="${r._regionInferred?'地区为空，按内容语言推断':'地区'}">📍 ${r.region}${r._regionInferred?'*':''}</span>
             <span class="feedback-tag">🏷️ ${r.product}</span>
             <span class="feedback-tag">📅 ${r.date}</span>
           </div>
@@ -3093,7 +3115,19 @@
     
     function loadResult(result) {
       // result.records 可能不存在（JSON直接加载时已提前设置 cleanedData）
-      const _records = Array.isArray(result?.records) ? result.records : [];
+      let _records = Array.isArray(result?.records) ? result.records : [];
+      // GP 等渠道常缺失地区字段，按内容语言高置信度补全，便于地区分布与卡片展示
+      _records = _records.map(r => {
+        if (!r.region) {
+          const inferred = inferRegion(r.content || r.content_zh);
+          if (inferred) {
+            r._originalRegion = '';
+            r._regionInferred = true;
+            r.region = inferred;
+          }
+        }
+        return r;
+      });
       window.cleanedData = _records;
       console.log(`[loadResult] records=${_records.length} withScore=${_records.filter(r => r.ai_score != null).length} aiInvalid=${_records.filter(r => r._ai_invalid).length}`);
       if (_records.length > 0) {
@@ -3582,7 +3616,7 @@
           ${hasTranslation ? `<div style="color:var(--text-light);font-size:0.75rem;margin-bottom:4px;line-height:1.4;">📖 ${(r.content_zh || '').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : ''}
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <span style="font-size:0.66rem;padding:1px 5px;border-radius:3px;${sentColor}">${sentIcon}${sentLabel}</span>
-            ${regionText ? `<span style="font-size:0.68rem;color:var(--text-light);">📍${regionText}</span>` : ''}
+            ${regionText ? `<span style="font-size:0.68rem;color:var(--text-light);" title="${r._regionInferred?'地区为空，按内容语言推断':'地区'}">📍${regionText}${r._regionInferred?'*':''}</span>` : ''}
             ${r.device ? `<span style="font-size:0.68rem;color:var(--text-light);">📱${r.device}</span>` : ''}
             ${r.version ? `<span style="font-size:0.68rem;color:var(--text-light);">🏷️ v${r.version}</span>` : ''}
             ${r.date ? `<span style="font-size:0.68rem;color:var(--text-light);">📅${r.date}</span>` : ''}
