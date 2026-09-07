@@ -587,8 +587,9 @@
         <div style="margin-bottom:10px;">
           <label style="font-size:0.82rem;color:#374151;font-weight:500;">粘贴 API Key</label>
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
-            <input type="password" id="api-key-input" placeholder="AIzaSy... 或 sk-...（聚合网关）"
+            <input type="password" id="api-key-input" placeholder="AIzaSy... 或 sk-...（聚合网关）" oninput="validateApiKeyHint()"
               style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;outline:none;">
+            <div id="api-key-hint" style="font-size:0.72rem;margin-top:4px;min-height:14px;"></div>
             <button onclick="const i=document.getElementById('api-key-input');i.type=i.type==='password'?'text':'password';" title="显示/隐藏" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 4px;">👁</button>
           </div>
           <a href="https://aistudio.google.com/app/apikey" target="_blank"
@@ -596,7 +597,7 @@
         </div>
         <div style="margin-bottom:10px;">
           <label style="font-size:0.82rem;color:#374151;font-weight:500;">AI 通道</label>
-          <select id="ai-provider-select" onchange="document.getElementById('gateway-base-wrap').style.display=this.value==='gateway'?'block':'none'"
+          <select id="ai-provider-select" onchange="document.getElementById('gateway-base-wrap').style.display=this.value==='gateway'?'block':'none'; validateApiKeyHint();"
             style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-top:4px;">
             <option value="gateway">传音聚合网关 (OpenAI 兼容，推荐国内/非 Gemini 支持地区)</option>
             <option value="gemini">Google Gemini 直连</option>
@@ -2841,12 +2842,21 @@
     function showApiKeyModal() {
       return new Promise(resolve => {
         window._apiModalResolve = resolve;
-        document.getElementById('api-key-input').value = window._geminiApiKey || '';
+        // 按通道分别记忆 key，互不串用
+        window._keysByProvider = window._keysByProvider || {
+          gemini: localStorage.getItem('aiKey_gemini') || '',
+          gateway: localStorage.getItem('aiKey_gateway') || ''
+        };
         const sel = document.getElementById('ai-provider-select');
         const gb = document.getElementById('gateway-base-input');
-        if (sel) sel.value = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
+        const provider = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
+        if (sel) sel.value = provider;
         if (gb) gb.value = window._gatewayBase || localStorage.getItem('aiGatewayBase') || 'https://sw-aimodel.transsion-os.com';
+        // 预填当前通道对应的 key
+        const prefill = window._keysByProvider[provider] || (provider === 'gemini' ? (window._geminiApiKey || '') : '');
+        document.getElementById('api-key-input').value = prefill;
         if (sel) sel.onchange();
+        validateApiKeyHint();
         document.getElementById('api-key-modal').style.display = 'flex';
       });
     }
@@ -2856,13 +2866,37 @@
       const gb = document.getElementById('gateway-base-input');
       window._aiProvider = sel ? sel.value : 'gateway';
       window._gatewayBase = gb ? gb.value.trim() : '';
+      // 按通道分别保存 key，绝不串用
+      window._keysByProvider = window._keysByProvider || { gemini: localStorage.getItem('aiKey_gemini')||'', gateway: localStorage.getItem('aiKey_gateway')||'' };
+      window._keysByProvider[window._aiProvider] = key || '';
       try {
         localStorage.setItem('aiProvider', window._aiProvider);
         localStorage.setItem('aiGatewayBase', window._gatewayBase);
+        localStorage.setItem('aiKey_' + window._aiProvider, key || '');
       } catch(e) {}
+      if (window._aiProvider === 'gemini') window._geminiApiKey = key || '';
       if (window._apiModalResolve) {
         window._apiModalResolve(key);
         window._apiModalResolve = null;
+      }
+    }
+    // 实时校验 key 格式与通道是否匹配
+    function validateApiKeyHint() {
+      const input = document.getElementById('api-key-input');
+      const hint = document.getElementById('api-key-hint');
+      if (!input || !hint) return;
+      const v = (input.value || '').trim();
+      const provider = (document.getElementById('ai-provider-select') || {}).value || 'gateway';
+      if (!v) { hint.textContent = ''; hint.style.color = '#64748b'; return; }
+      if (provider === 'gateway' && !v.startsWith('sk-')) {
+        hint.textContent = '⚠️ 网关通道需填 sk-... 网关 Key（不是 Gemini 的 AIza... key）';
+        hint.style.color = '#dc2626';
+      } else if (provider === 'gemini' && !v.startsWith('AIza')) {
+        hint.textContent = '⚠️ Gemini 直连需填 AIza... 的 Google Key，且当前网络可能地区受限';
+        hint.style.color = '#dc2626';
+      } else {
+        hint.textContent = '✓ Key 格式与通道匹配';
+        hint.style.color = '#16a34a';
       }
     }
 
@@ -3890,7 +3924,11 @@ ${inputLines.join('\n')}`;
       const baseUrl = (window._gatewayBase || localStorage.getItem('aiGatewayBase') || 'https://sw-aimodel.transsion-os.com').replace(/\/$/, '');
       if (!window._aiProvider) window._aiProvider = provider;
       if (!window._gatewayBase) window._gatewayBase = baseUrl;
-      return { provider, apiKey: window._geminiApiKey || '', baseUrl };
+      // 按通道取对应 key：网关用网关 key，Gemini 用 Gemini key，绝不串用
+      window._keysByProvider = window._keysByProvider || { gemini: localStorage.getItem('aiKey_gemini')||'', gateway: localStorage.getItem('aiKey_gateway')||'' };
+      let apiKey = window._keysByProvider[provider] || '';
+      if (!apiKey && provider === 'gemini') apiKey = window._geminiApiKey || '';
+      return { provider, apiKey, baseUrl };
     }
 
     // 返回模型原始文本（与 callGeminiSingle/callGeminiBatch 共用）
