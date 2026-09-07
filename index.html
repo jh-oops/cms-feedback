@@ -598,8 +598,8 @@
           <label style="font-size:0.82rem;color:#374151;font-weight:500;">AI 通道</label>
           <select id="ai-provider-select" onchange="document.getElementById('gateway-base-wrap').style.display=this.value==='gateway'?'block':'none'"
             style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.85rem;margin-top:4px;">
+            <option value="gateway">传音聚合网关 (OpenAI 兼容，推荐国内/非 Gemini 支持地区)</option>
             <option value="gemini">Google Gemini 直连</option>
-            <option value="gateway">传音聚合网关 (OpenAI 兼容)</option>
           </select>
           <div id="gateway-base-wrap" style="margin-top:6px;display:none;">
             <input type="text" id="gateway-base-input" placeholder="网关地址（不含 /v1）"
@@ -608,7 +608,9 @@
           </div>
         </div>
         <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:16px;font-size:0.78rem;color:#64748b;">
-          💡 使用 AI 分析可自动翻译外语反馈、判断情感、分类模块并打分。跳过则仅用本地脚本清洗 + 关键词匹配。
+          💡 使用 AI 分析可自动翻译外语反馈、判断情感、分类模块并打分。<br>
+          国内或 Gemini 不支持地区，请选择上方「传音聚合网关」并填写 sk-... 网关 Key，避免「User location is not supported」报错。<br>
+          跳过则仅用本地脚本清洗 + 关键词匹配。
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button onclick="closeApiKeyModal(null)" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#374151;font-size:0.82rem;cursor:pointer;">跳过 · 仅脚本分析</button>
@@ -2842,7 +2844,7 @@
         document.getElementById('api-key-input').value = window._geminiApiKey || '';
         const sel = document.getElementById('ai-provider-select');
         const gb = document.getElementById('gateway-base-input');
-        if (sel) sel.value = window._aiProvider || localStorage.getItem('aiProvider') || 'gemini';
+        if (sel) sel.value = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
         if (gb) gb.value = window._gatewayBase || localStorage.getItem('aiGatewayBase') || 'https://sw-aimodel.transsion-os.com';
         if (sel) sel.onchange();
         document.getElementById('api-key-modal').style.display = 'flex';
@@ -2852,7 +2854,7 @@
       document.getElementById('api-key-modal').style.display = 'none';
       const sel = document.getElementById('ai-provider-select');
       const gb = document.getElementById('gateway-base-input');
-      window._aiProvider = sel ? sel.value : 'gemini';
+      window._aiProvider = sel ? sel.value : 'gateway';
       window._gatewayBase = gb ? gb.value.trim() : '';
       try {
         localStorage.setItem('aiProvider', window._aiProvider);
@@ -3884,7 +3886,7 @@ ${inputLines.join('\n')}`;
     // ── 单条 Gemini API 调用（用于聚合分析）──
     // ── 统一 AI 请求层（支持 Google 直连 / 聚合网关 OpenAI 兼容）──
     function getAiConfig() {
-      const provider = window._aiProvider || localStorage.getItem('aiProvider') || 'gemini';
+      const provider = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
       const baseUrl = (window._gatewayBase || localStorage.getItem('aiGatewayBase') || 'https://sw-aimodel.transsion-os.com').replace(/\/$/, '');
       if (!window._aiProvider) window._aiProvider = provider;
       if (!window._gatewayBase) window._gatewayBase = baseUrl;
@@ -3912,21 +3914,38 @@ ${inputLines.join('\n')}`;
         const data = await resp.json();
         return data?.choices?.[0]?.message?.content || '';
       }
+
       // 默认：Google Gemini 原生格式
       const url = `https://generativelanguage.googleapis.com/v1/models/${modelKey}:generateContent?key=${config.apiKey}`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: maxOut }
-        }),
-        signal
-      });
-      if (resp.status === 429 || resp.status === 503) throw new Error(`${modelKey} ${resp.status} (rate/overload)`);
-      if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${resp.status}`); }
-      const data = await resp.json();
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: maxOut }
+          }),
+          signal
+        });
+        if (resp.status === 429 || resp.status === 503) throw new Error(`${modelKey} ${resp.status} (rate/overload)`);
+        if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e?.error?.message || `HTTP ${resp.status}`); }
+        const data = await resp.json();
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } catch (e) {
+        const msg = e.message || String(e);
+        // Google 对非支持地区会返回 "User location is not supported for the API use"
+        if (msg.includes('User location is not supported') || msg.includes('location is not supported')) {
+          // 若 key 是网关 key（sk-...），自动切网关重试一次
+          if (config.apiKey && config.apiKey.startsWith('sk-')) {
+            const gwBase = (window._gatewayBase || localStorage.getItem('aiGatewayBase') || 'https://sw-aimodel.transsion-os.com').replace(/\/$/, '');
+            console.log('[aiFetchRaw] Gemini 直连因地区被阻断，自动切换至聚合网关:', gwBase);
+            const gwConfig = { ...config, provider: 'gateway', baseUrl: gwBase };
+            return await aiFetchRaw(modelKey, prompt, maxOut, signal, gwConfig);
+          }
+          throw new Error('当前地区无法直连 Google Gemini。请在上方 AI 通道选择「传音聚合网关」并填写 sk-... 网关 Key。');
+        }
+        throw e;
+      }
     }
 
     async function callGeminiSingle(apiKey, prompt, modelKey, maxOut, fallbackModel, signal) {
