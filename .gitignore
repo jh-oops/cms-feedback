@@ -17,3 +17,9 @@ label_feedback.py
 weekly_download.py
 build_index.py
 _dev_artifacts/
+
+# 飞书云盘同步脚本 + 凭证（含 app_secret，本地专用，绝不推 GitHub）
+sync_feishu_drive.py
+.feishu_creds.json
+
+ingest_themes.py

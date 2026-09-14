@@ -3884,7 +3884,10 @@ ${inputLines.join('\n')}`;
         }, 180000);
         let result;
         try {
-          result = await callGeminiSingle(apiKey, prompt, 'gemini-2.5-flash-lite', 32768, 'gemini-2.5-flash', signal);
+          const _prov2 = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
+          const _singleModel = _prov2 === 'gemini' ? GEMINI_MODEL_LITE : MODEL_LITE;
+          const _singleFb    = _prov2 === 'gemini' ? GEMINI_MODEL_FLASH : MODEL_FLASH;
+          result = await callGeminiSingle(apiKey, prompt, _singleModel, 32768, _singleFb, signal);
         } finally {
           clearInterval(_aggTimer);
           clearTimeout(_aggHardTimeout);
@@ -4050,6 +4053,11 @@ ${inputLines.join('\n')}`;
             console.log(`[callGeminiSingle] ${modelKey} 503过载，切换至 ${fallbackModel}`);
             return await tryModel(fallbackModel);
           }
+          // 模型被网关下架/不存在（返回 model_not_found / No available channel）→ 直接换备用模型
+          if ((msg.includes('model_not_found') || msg.includes('No available channel')) && fallbackModel && fallbackModel !== modelKey) {
+            console.log(`[callGeminiSingle] ${modelKey} 模型不可用，切换至 ${fallbackModel}`);
+            return await tryModel(fallbackModel);
+          }
           // 429 限流 → 等待后重试
           if (attempt < 3 && msg.includes('429')) {
             await new Promise(r => setTimeout(r, 30000 * attempt));
@@ -4063,9 +4071,13 @@ ${inputLines.join('\n')}`;
     // ── Gemini API 调用 ─────────────────────────────────────────
     // 批量情感判断 + 翻译 + 模块分类
     // 模型配置
-    const MODEL_LITE  = 'gemini-2.5-flash-lite';     // 首选，120条/批，RPM=10 约束下批次越大总请求越少越稳
-    const MODEL_FLASH = 'gemini-2.5-flash';          // 备用，50条/批，RPM=5
-    const MODEL_FALLBACK = 'gemini-2.0-flash';       // 兜底，30条/批
+    const MODEL_LITE  = 'deepseek-v4-flash';         // 首选（传音网关，替代已下架 gemini-2.5-flash-lite），120条/批
+    const MODEL_FLASH = 'qwen3.8-flash';             // 备用，50条/批
+    const MODEL_FALLBACK = 'ZHIPU/GLM-5.3-Flash';    // 兜底，30条/批
+    // Gemini 直连模型（仅 VPN/非地区受限时使用，网关已下架 gemini）
+    const GEMINI_MODEL_LITE  = 'gemini-2.5-flash-lite';
+    const GEMINI_MODEL_FLASH = 'gemini-2.5-flash';
+    const GEMINI_MODEL_FALLBACK = 'gemini-2.0-flash';
     const BATCH_LITE  = 120;
     const BATCH_FLASH = 50;
     const BATCH_FALLBACK = 30;
@@ -4289,10 +4301,14 @@ ${inputLines.join('\n')}`;
 
       const signal = resetAiAbortController();
 
+      const _prov = window._aiProvider || localStorage.getItem('aiProvider') || 'gateway';
+      const _m = _prov === 'gemini'
+        ? { lite: GEMINI_MODEL_LITE, flash: GEMINI_MODEL_FLASH, fb: GEMINI_MODEL_FALLBACK }
+        : { lite: MODEL_LITE, flash: MODEL_FLASH, fb: MODEL_FALLBACK };
       const MODELS = [
-        { name: '2.5 Flash-Lite(首选)', modelKey: MODEL_LITE,  batch: BATCH_LITE,  maxOut: MAXOUT_LITE,  interval: 3500 },
-        { name: '2.5 Flash(备用)',    modelKey: MODEL_FLASH, batch: BATCH_FLASH, maxOut: MAXOUT_FLASH, interval: 12000 },
-        { name: '2.0 Flash(兜底)',   modelKey: MODEL_FALLBACK, batch: BATCH_FALLBACK, maxOut: MAXOUT_FALLBACK, interval: 12000 },
+        { name: (_prov === 'gemini' ? 'Gemini 2.5 Flash-Lite(首选)' : 'DeepSeek-V4-Flash(首选)'), modelKey: _m.lite,  batch: BATCH_LITE,  maxOut: MAXOUT_LITE,  interval: 3500 },
+        { name: (_prov === 'gemini' ? 'Gemini 2.5 Flash(备用)' : 'Qwen3.8-Flash(备用)'),         modelKey: _m.flash, batch: BATCH_FLASH, maxOut: MAXOUT_FLASH, interval: 12000 },
+        { name: (_prov === 'gemini' ? 'Gemini 2.0 Flash(兜底)' : 'GLM-5.3-Flash(兜底)'),         modelKey: _m.fb,   batch: BATCH_FALLBACK, maxOut: MAXOUT_FALLBACK, interval: 12000 },
       ];
       let modelIdx = 0;
       let done = 0;
